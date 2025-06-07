@@ -80,13 +80,4 @@ const CalendarPage: React.FC = () => {
   );
 };
 
-export default CalendarPage;            right: "dayGridMonth,dayGridWeek,dayGridDay",
-          }}
-          themeSystem="standard"
-        />
-      </div>
-    </div>
-  );
-};
-
 export default CalendarPage;
