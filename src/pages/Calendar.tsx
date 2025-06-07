@@ -12,6 +12,21 @@ interface Booking {
   source: string;
 }
 
+const SOURCE_COLORS: Record<string, string> = {
+  airbnb: "#FF5A5F",
+  booking: "#003580",
+  direct: "#22c55e",
+};
+
+function getSourceColor(source: string) {
+  if (!source) return "#64748b";
+  const key = source.toLowerCase();
+  if (key.includes("airbnb")) return SOURCE_COLORS.airbnb;
+  if (key.includes("booking")) return SOURCE_COLORS.booking;
+  if (key.includes("direct")) return SOURCE_COLORS.direct;
+  return "#64748b";
+}
+
 const CalendarPage: React.FC = () => {
   const { currentProperty } = useApp();
   const propertyId = currentProperty?.id;
@@ -19,22 +34,29 @@ const CalendarPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!propertyId) return;
+    if (!propertyId) {
+      setEvents([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     supabase
       .from("bookings")
       .select("id,start_date,end_date,source")
       .eq("property_id", propertyId)
       .then(({ data, error }) => {
-        if (error) {
+        if (error || !data) {
           setEvents([]);
-        } else if (data) {
+        } else {
           setEvents(
             data.map((b: Booking) => ({
               id: b.id,
               title: b.source,
               start: b.start_date,
               end: b.end_date,
+              backgroundColor: getSourceColor(b.source),
+              borderColor: getSourceColor(b.source),
+              textColor: "#fff",
             }))
           );
         }
@@ -46,7 +68,7 @@ const CalendarPage: React.FC = () => {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-slate-900">
         <span className="text-lg text-gray-500 dark:text-gray-300">
-          Pick a property first
+          Please select a property to view its calendar.
         </span>
       </div>
     );

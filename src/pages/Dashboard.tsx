@@ -1,72 +1,128 @@
-import React, { useState, useEffect } from "react";
-import { AlertTriangle } from "lucide-react";
+import React, { useEffect, useState } from "react";
 import { supabase } from "@/api/supabaseClient";
 import { useApp } from "@/context/AppContext";
-import MetricCard from "@/components/MetricCard";
+
+interface PropertyRow {
+  id: string;
+  name: string;
+  location: string;
+  airbnb_ical_url?: string;
+  booking_ical_url?: string;
+}
 
 interface PropertyMetrics {
   open_nights_30d: number;
-  upcoming_checkins_7d: number;
-  conflicts: number;
-}
-
-interface LargestGap {
-  nights: number;
-  start_date: string;
-  end_date: string;
+  total_nights_30d: number;
 }
 
 const Dashboard: React.FC = () => {
-  const { currentProperty } = useApp();
-  const propertyId = currentProperty?.id;
-  const [metrics, setMetrics] = useState<PropertyMetrics | null>(null);
-  const [gap, setGap] = useState<LargestGap | null>(null);
+  const { setProperty } = useApp();
+  const [properties, setProperties] = useState<PropertyRow[]>([]);
+  const [metrics, setMetrics] = useState<Record<string, PropertyMetrics>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!propertyId) return;
-    setLoading(true);
-    Promise.all([
-      supabase.rpc("fn_property_metrics", { p_property: propertyId }),
-      supabase.rpc("fn_largest_gap", { p_property: propertyId }),
-    ]).then(([metricsRes, gapRes]) => {
-      setMetrics(metricsRes.data ? metricsRes.data[0] : null);
-      setGap(gapRes.data ? gapRes.data[0] : null);
+    const fetchProperties = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("properties")
+        .select("id,name,location,airbnb_ical_url,booking_ical_url");
+      if (!error && data) {
+        setProperties(data as PropertyRow[]);
+        // Fetch metrics for each property
+        const metricsResults = await Promise.all(
+          data.map(async (prop: PropertyRow) => {
+            const { data: metricData } = await supabase.rpc("fn_property_metrics", { p_property: prop.id });
+            return {
+              id: prop.id,
+              open_nights_30d: metricData?.[0]?.open_nights_30d ?? 0,
+              total_nights_30d: metricData?.[0]?.total_nights_30d ?? 30,
+            };
+          })
+        );
+        const metricsMap: Record<string, PropertyMetrics> = {};
+        metricsResults.forEach((m) => {
+          metricsMap[m.id] = {
+            open_nights_30d: m.open_nights_30d,
+            total_nights_30d: m.total_nights_30d,
+          };
+        });
+        setMetrics(metricsMap);
+      }
       setLoading(false);
-      if (metricsRes.error) console.error(metricsRes.error);
-      if (gapRes.error) console.error(gapRes.error);
-    });
-  }, [propertyId]);
+    };
+    fetchProperties();
+  }, []);
 
   return (
     <main className="flex-1 p-8 bg-gray-50 dark:bg-slate-900">
-      {metrics && metrics.conflicts > 0 && (
-        <div className="mb-6 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded-lg px-4 py-3 flex items-center">
-          <AlertTriangle className="w-5 h-5 mr-2" />
-          <span>⚠️ {metrics.conflicts} conflicts</span>
+      <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Properties</h1>
+      {loading ? (
+        <div className="flex justify-center items-center h-40">
+          <div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {properties.map((prop) => (
+            <div
+              key={prop.id}
+              className="bg-white dark:bg-slate-800 rounded-xl shadow p-6 flex flex-col gap-2"
+            >
+              <div className="font-semibold text-lg text-gray-900 dark:text-white">{prop.name}</div>
+              <div className="text-gray-600 dark:text-gray-300 text-sm mb-2">
+                Location: {prop.location}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                Airbnb iCal:{" "}
+                {prop.airbnb_ical_url ? (
+                  <a
+                    href={prop.airbnb_ical_url}
+                    className="underline break-all"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {prop.airbnb_ical_url}
+                  </a>
+                ) : (
+                  <span className="italic text-gray-400">None</span>
+                )}
+                <br />
+                Booking.com iCal:{" "}
+                {prop.booking_ical_url ? (
+                  <a
+                    href={prop.booking_ical_url}
+                    className="underline break-all"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {prop.booking_ical_url}
+                  </a>
+                ) : (
+                  <span className="italic text-gray-400">None</span>
+                )}
+              </div>
+              <div className="mb-2">
+                <span className="text-sm text-gray-700 dark:text-gray-200">
+                  Open nights (30d):{" "}
+                  <span className="font-semibold">
+                    {metrics[prop.id]?.open_nights_30d ?? "—"}
+                  </span>
+                  {" / "}
+                  <span className="font-semibold">
+                    {metrics[prop.id]?.total_nights_30d ?? "—"}
+                  </span>
+                </span>
+              </div>
+              <button
+                className="mt-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition"
+                onClick={() => setProperty({ id: prop.id, name: prop.name })}
+              >
+                View Calendar
+              </button>
+            </div>
+          ))}
         </div>
       )}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-        <MetricCard
-          title="Open Nights (30d)"
-          value={metrics ? metrics.open_nights_30d?.toString() ?? "0" : "0"}
-          loading={loading}
-        />
-        <MetricCard
-          title="Upcoming Check-ins (7d)"
-          value={metrics ? metrics.upcoming_checkins_7d?.toString() ?? "0" : "0"}
-          loading={loading}
-        />
-        <MetricCard
-          title="Biggest Gap"
-          value={
-            gap
-              ? `${gap.nights ?? 0} nights\n${gap.start_date ? new Date(gap.start_date).toLocaleDateString() : ""} - ${gap.end_date ? new Date(gap.end_date).toLocaleDateString() : ""}`
-              : "0 nights"
-          }
-          loading={loading}
-        />
-      </div>
     </main>
   );
 };
