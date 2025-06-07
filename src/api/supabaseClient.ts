@@ -18,4 +18,8 @@ try {
   throw new Error('VITE_SUPABASE_URL is not a valid URL');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(
+  supabaseUrl,
+  supabaseAnonKey,
+  { realtime: { enabled: false } } // Disable Supabase realtime WebSocket
+);

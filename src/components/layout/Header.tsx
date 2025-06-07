@@ -1,79 +1,102 @@
-import React from 'react';
-import { Link, useLocation, NavLink } from 'react-router-dom';
-import { Home, Calendar, Menu } from 'lucide-react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { useApp } from '@/context/AppContext';
 
-interface HeaderProps {
-  toggleSidebar: () => void;
-}
+const LOCATIONS = [
+  { name: 'Belgrade', properties: ['Knez Mihailova', 'Dorcol Loft'] },
+  { name: 'Novi Sad', properties: ['Petrovaradin Flat', 'City Center Studio'] },
+  { name: 'Zlatibor', properties: ['Mountain View'] },
+];
 
-const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
-  const location = useLocation();
-  
-  // Determine the current page title based on the route
-  const getPageTitle = () => {
-    const path = location.pathname;
-    
-    if (path === '/dashboard') return 'Dashboard';
-    if (path === '/properties') return 'Properties';
-    if (path === '/locations') return 'Locations';
-    if (path.startsWith('/locations/')) return 'Location Details';
-    if (path.startsWith('/properties/')) return 'Property Details';
-    return 'Channel Manager';
+const AVATAR_PLACEHOLDER =
+  'https://ui-avatars.com/api/?name=User&background=64748b&color=fff&rounded=true';
+
+const Header: React.FC = () => {
+  const { location: contextLocation, property: contextProperty, setLocation, setProperty } = useApp();
+
+  // Local state to avoid controlled/uncontrolled warning if context is async
+  const [selectedLocation, setSelectedLocation] = useState(contextLocation || LOCATIONS[0].name);
+  const [selectedProperty, setSelectedProperty] = useState(contextProperty || '');
+
+  // Sync with context
+  useEffect(() => {
+    setSelectedLocation(contextLocation || LOCATIONS[0].name);
+  }, [contextLocation]);
+  useEffect(() => {
+    setSelectedProperty(contextProperty || '');
+  }, [contextProperty]);
+
+  // Get properties for selected location
+  const properties =
+    LOCATIONS.find((loc) => loc.name === selectedLocation)?.properties || [];
+
+  // Handle location change
+  const handleLocationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const loc = e.target.value;
+    setSelectedLocation(loc);
+    setLocation(loc);
+    // If current property not in new location, clear property
+    if (!LOCATIONS.find((l) => l.name === loc)?.properties.includes(selectedProperty)) {
+      setSelectedProperty('');
+      setProperty('');
+    }
   };
-  
+
+  // Handle property change
+  const handlePropertyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const prop = e.target.value;
+    setSelectedProperty(prop);
+    setProperty(prop);
+  };
+
   return (
-    <motion.header 
-      className="bg-white shadow-md px-4 py-3 flex items-center justify-between"
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
-      <div className="flex items-center">
-        <button 
-          onClick={toggleSidebar}
-          className="mr-4 p-2 rounded-full hover:bg-gray-100 lg:hidden"
-          aria-label="Toggle sidebar"
-        >
-          <Menu size={20} />
-        </button>
-        <Link to="/dashboard" className="flex items-center mr-6">
-          <Calendar className="h-6 w-6 text-blue-600 mr-2" />
-          <h1 className="text-xl font-bold text-gray-800">Channel Manager</h1>
-        </Link>
-        <nav className="hidden md:flex space-x-2">
-          <NavLink
-            to="/locations"
-            className={({ isActive }) =>
-              `px-4 py-2 rounded transition-colors ${
-                (isActive || location.pathname.startsWith('/locations/')) 
-                  ? 'text-blue-600 font-semibold bg-blue-50' 
-                  : 'hover:bg-gray-100'
-              }`
-            }
-          >
-            Locations
-          </NavLink>
-          <NavLink
-            to="/properties"
-            className={({ isActive }) =>
-              `px-4 py-2 rounded transition-colors ${
-                isActive ? 'text-blue-600 font-semibold bg-blue-50' : 'hover:bg-gray-100'
-              }`
-            }
-          >
-            All Properties
-          </NavLink>
-        </nav>
+    <header className="sticky top-0 z-30 h-12 bg-white dark:bg-slate-800 shadow flex items-center px-4">
+      {/* Left: Brand */}
+      <div className="flex items-center min-w-[180px]">
+        <span className="text-2xl mr-2">🏠</span>
+        <span className="font-bold text-lg text-gray-800 dark:text-white">Channel Manager</span>
       </div>
-      
-      <div className="flex items-center">
-        <h2 className="text-lg font-medium text-gray-600 mr-6 hidden md:block">
-          {getPageTitle()}
-        </h2>
+
+      {/* Center: Pickers */}
+      <div className="flex-1 flex justify-center">
+        <div className="flex gap-4">
+          {/* Location Picker */}
+          <select
+            className="rounded px-3 py-1 bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-white border border-gray-200 dark:border-slate-700 focus:outline-none"
+            value={selectedLocation}
+            onChange={handleLocationChange}
+          >
+            {LOCATIONS.map((loc) => (
+              <option key={loc.name} value={loc.name}>
+                {loc.name}
+              </option>
+            ))}
+          </select>
+          {/* Property Picker */}
+          <select
+            className="rounded px-3 py-1 bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-white border border-gray-200 dark:border-slate-700 focus:outline-none"
+            value={selectedProperty}
+            onChange={handlePropertyChange}
+          >
+            <option value="">Select property</option>
+            {properties.map((prop) => (
+              <option key={prop} value={prop}>
+                {prop}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
-    </motion.header>
+
+      {/* Right: Avatar */}
+      <div className="flex items-center min-w-[48px] justify-end">
+        <img
+          src={AVATAR_PLACEHOLDER}
+          alt="User avatar"
+          className="w-8 h-8 rounded-full border border-slate-300 dark:border-slate-700"
+        />
+      </div>
+    </header>
   );
 };
 
-export default Header
+export default Header;

@@ -1,99 +1,60 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Building, Calendar, Settings, X, MapPin } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Home, Calendar, BarChart2, Settings } from 'lucide-react';
 
-interface SidebarProps {
-  isOpen: boolean;
-  toggleSidebar: () => void;
-}
+const navItems = [
+  { to: '/dashboard', icon: <Home size={20} />, label: 'Dashboard' },
+  { to: '/calendar', icon: <Calendar size={20} />, label: 'Calendar' },
+  { to: '/analytics', icon: <BarChart2 size={20} />, label: 'Analytics' },
+];
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
-  const navItems = [
-    { to: '/dashboard', icon: <Home size={20} />, label: 'Dashboard' },
-    { to: '/properties', icon: <Building size={20} />, label: 'Properties' },
-    { to: '/locations', icon: <MapPin size={20} />, label: 'Locations' },
-    // Add more navigation items as needed
-  ];
-  
-  const sidebarVariants = {
-    open: { x: 0, transition: { type: 'spring', stiffness: 300, damping: 30 } },
-    closed: { 
-      x: '-100%', 
-      transition: { 
-        type: 'spring', 
-        stiffness: 300, 
-        damping: 30,
-        when: 'afterChildren' 
-      } 
-    }
-  };
-  
+const Sidebar: React.FC = () => {
   return (
-    <>
-      {/* Mobile overlay */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
-          onClick={toggleSidebar}
-        />
-      )}
-      
-      {/* Sidebar */}
-      <motion.aside
-        className={`fixed top-0 left-0 h-full w-64 bg-white shadow-lg z-30 lg:relative lg:z-0 ${isOpen ? 'block' : 'hidden lg:block'}`}
-        variants={sidebarVariants}
-        initial="closed"
-        animate={isOpen ? 'open' : 'closed'}
-      >
-        <div className="p-4 flex justify-between items-center border-b">
-          <div className="flex items-center">
-            <Calendar className="h-6 w-6 text-blue-600 mr-2" />
-            <h2 className="text-lg font-bold">Channel Manager</h2>
-          </div>
-          <button 
-            onClick={toggleSidebar} 
-            className="p-1 rounded-full hover:bg-gray-100 lg:hidden"
-          >
-            <X size={20} />
-          </button>
-        </div>
-        
-        <nav className="p-4">
-          <ul className="space-y-2">
-            {navItems.map((item) => (
-              <li key={item.to}>
-                <NavLink
-                  to={item.to}
-                  className={({ isActive }) => 
-                    `flex items-center p-3 rounded-xl transition-colors ${
-                      isActive 
-                        ? 'bg-blue-50 text-blue-600' 
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`
-                  }
-                  onClick={() => {
-                    if (window.innerWidth < 1024) {
-                      toggleSidebar();
-                    }
-                  }}
-                >
-                  <span className="mr-3">{item.icon}</span>
-                  <span>{item.label}</span>
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        
-        <div className="absolute bottom-0 w-full p-4 border-t">
-          <div className="flex items-center p-3 rounded-xl text-gray-700 hover:bg-gray-100 cursor-pointer">
-            <Settings size={20} className="mr-3" />
-            <span>Settings</span>
-          </div>
-        </div>
-      </motion.aside>
-    </>
+    <aside className="w-56 min-h-screen bg-slate-900 text-white flex flex-col fixed lg:relative z-30">
+      {/* Top: Brand */}
+      <div className="flex items-center h-16 px-6 border-b border-slate-800">
+        <span className="text-2xl mr-2">🏠</span>
+        <span className="font-bold text-lg">Channel Manager</span>
+      </div>
+      {/* Menu */}
+      <nav className="flex-1 px-2 py-6">
+        <ul className="space-y-1">
+          {navItems.map((item) => (
+            <li key={item.to}>
+              <NavLink
+                to={item.to}
+                className={({ isActive }) =>
+                  `flex items-center px-4 py-3 rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-slate-800 text-white'
+                      : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+                  }`
+                }
+              >
+                <span className="mr-3">{item.icon}</span>
+                <span>{item.label}</span>
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      {/* Bottom: Settings */}
+      <div className="mt-auto px-2 pb-6">
+        <NavLink
+          to="/settings"
+          className={({ isActive }) =>
+            `flex items-center px-4 py-3 rounded-lg transition-colors ${
+              isActive
+                ? 'bg-slate-800 text-white'
+                : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+            }`
+          }
+        >
+          <Settings size={20} className="mr-3" />
+          <span>Settings</span>
+        </NavLink>
+      </div>
+    </aside>
   );
 };
 
