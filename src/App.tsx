@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence } from 'framer-motion';
 
 // Pages
-import Login from './pages/Login';
+import Login from './pages/Login.tsx';
 import Dashboard from './pages/Dashboard';
 import Properties from './pages/Properties';
 import Locations from './pages/Locations';
@@ -24,14 +24,14 @@ const queryClient = new QueryClient();
 
 function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
+
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
-  
+
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
+      <HashRouter>
         <div className="flex h-screen">
           <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
           <div className="flex-1 flex flex-col">
@@ -53,7 +53,7 @@ function App() {
             </div>
           </div>
         </div>
-      </Router>
+      </HashRouter>ter>
     </QueryClientProvider>
   );
 }
