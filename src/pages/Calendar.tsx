@@ -1,94 +1,90 @@
-import React from "react";
-import Sidebar from "@/components/layout/Sidebar";
-import TopBar from "@/components/layout/Header";
+import React, { useEffect, useState } from "react";
 import { useApp } from "@/context/AppContext";
+import { supabase } from "@/api/supabaseClient";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 
-const LOCATIONS = [
-  { name: "Belgrade", properties: ["Knez Mihailova", "Dorcol Loft"] },
-  { name: "Novi Sad", properties: ["Petrovaradin Flat", "City Center Studio"] },
-  { name: "Zlatibor", properties: ["Mountain View"] },
-];
+interface Booking {
+  id: string;
+  start_date: string;
+  end_date: string;
+  source: string;
+}
 
 const CalendarPage: React.FC = () => {
-  const { location, setLocation, property, setProperty } = useApp();
+  const { currentProperty } = useApp();
+  const propertyId = currentProperty?.id;
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const selectedLocation = location || LOCATIONS[0].name;
-  const properties =
-    LOCATIONS.find((loc) => loc.name === selectedLocation)?.properties || [];
-  const selectedProperty = property || "";
+  useEffect(() => {
+    if (!propertyId) return;
+    setLoading(true);
+    supabase
+      .from("bookings")
+      .select("id,start_date,end_date,source")
+      .eq("property_id", propertyId)
+      .then(({ data, error }) => {
+        if (error) {
+          setEvents([]);
+        } else if (data) {
+          setEvents(
+            data.map((b: Booking) => ({
+              id: b.id,
+              title: b.source,
+              start: b.start_date,
+              end: b.end_date,
+            }))
+          );
+        }
+        setLoading(false);
+      });
+  }, [propertyId]);
 
-  const handleLocationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const loc = e.target.value;
-    setLocation(loc);
-    if (!LOCATIONS.find((l) => l.name === loc)?.properties.includes(selectedProperty)) {
-      setProperty("");
-    }
-  };
+  if (!propertyId) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-slate-900">
+        <span className="text-lg text-gray-500 dark:text-gray-300">
+          Pick a property first
+        </span>
+      </div>
+    );
+  }
 
-  const handlePropertyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setProperty(e.target.value);
-  };
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-slate-900">
+        <div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-slate-900">
-      <Sidebar />
-      <main className="flex-1 flex flex-col">
-        <TopBar />
-        <div className="container mx-auto p-6 flex-1 flex flex-col">
-          {!selectedProperty ? (
-            <div className="flex flex-1 items-center justify-center">
-              <span className="text-lg text-gray-500 dark:text-gray-300">
-                Pick a property first
-              </span>
-            </div>
-          ) : (
-            <>
-              <div className="flex gap-4 mb-6">
-                <select
-                  className="rounded px-3 py-1 bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-white border border-gray-200 dark:border-slate-700 focus:outline-none"
-                  value={selectedLocation}
-                  onChange={handleLocationChange}
-                >
-                  {LOCATIONS.map((loc) => (
-                    <option key={loc.name} value={loc.name}>
-                      {loc.name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  className="rounded px-3 py-1 bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-white border border-gray-200 dark:border-slate-700 focus:outline-none"
-                  value={selectedProperty}
-                  onChange={handlePropertyChange}
-                >
-                  <option value="">Select property</option>
-                  {properties.map((prop) => (
-                    <option key={prop} value={prop}>
-                      {prop}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-4">
-                <FullCalendar
-                  plugins={[dayGridPlugin, interactionPlugin]}
-                  initialView="dayGridMonth"
-                  height="auto"
-                  events={[]}
-                  headerToolbar={{
-                    left: "prev,next today",
-                    center: "title",
-                    right: "dayGridMonth,dayGridWeek,dayGridDay",
-                  }}
-                  themeSystem="standard"
-                />
-              </div>
-            </>
-          )}
-        </div>
-      </main>
+    <div className="container mx-auto p-6 flex-1 flex flex-col bg-gray-50 dark:bg-slate-900">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-4">
+        <FullCalendar
+          plugins={[dayGridPlugin, interactionPlugin]}
+          initialView="dayGridMonth"
+          events={events}
+          height="auto"
+          headerToolbar={{
+            left: "prev,next today",
+            center: "title",
+            right: "dayGridMonth,dayGridWeek,dayGridDay",
+          }}
+          themeSystem="standard"
+        />
+      </div>
+    </div>
+  );
+};
+
+export default CalendarPage;            right: "dayGridMonth,dayGridWeek,dayGridDay",
+          }}
+          themeSystem="standard"
+        />
+      </div>
     </div>
   );
 };
