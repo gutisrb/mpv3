@@ -6,8 +6,8 @@ interface PropertyRow {
   id: string;
   name: string;
   location: string;
-  airbnb_ical_url?: string;
-  booking_ical_url?: string;
+  airbnb_ical?: string;
+  booking_ical?: string;
 }
 
 interface PropertyMetrics {
@@ -26,7 +26,7 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from("properties")
-        .select("id,name,location,airbnb_ical_url,booking_ical_url");
+        .select("id,name,location,airbnb_ical,booking_ical");
       if (!error && data) {
         setProperties(data as PropertyRow[]);
         // Fetch metrics for each property
@@ -74,28 +74,28 @@ const Dashboard: React.FC = () => {
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
                 Airbnb iCal:{" "}
-                {prop.airbnb_ical_url ? (
+                {prop.airbnb_ical ? (
                   <a
-                    href={prop.airbnb_ical_url}
+                    href={prop.airbnb_ical}
                     className="underline break-all"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    {prop.airbnb_ical_url}
+                    {prop.airbnb_ical}
                   </a>
                 ) : (
                   <span className="italic text-gray-400">None</span>
                 )}
                 <br />
                 Booking.com iCal:{" "}
-                {prop.booking_ical_url ? (
+                {prop.booking_ical ? (
                   <a
-                    href={prop.booking_ical_url}
+                    href={prop.booking_ical}
                     className="underline break-all"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    {prop.booking_ical_url}
+                    {prop.booking_ical}
                   </a>
                 ) : (
                   <span className="italic text-gray-400">None</span>

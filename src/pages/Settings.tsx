@@ -5,8 +5,8 @@ interface Property {
   id: string;
   name: string;
   location: string;
-  airbnb_ical_url?: string;
-  booking_ical_url?: string;
+  airbnb_ical?: string;
+  booking_ical?: string;
 }
 
 const SettingsPage: React.FC = () => {
@@ -28,7 +28,7 @@ const SettingsPage: React.FC = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('properties')
-      .select('id,name,location,airbnb_ical_url,booking_ical_url');
+      .select('id,name,location,airbnb_ical,booking_ical');
     if (!error && data) setProperties(data as Property[]);
     setLoading(false);
   };
@@ -46,8 +46,8 @@ const SettingsPage: React.FC = () => {
       name: propName.trim(),
       location: propLocation.trim(),
     };
-    if (airbnbIcal.trim()) insertObj.airbnb_ical_url = airbnbIcal.trim();
-    if (bookingIcal.trim()) insertObj.booking_ical_url = bookingIcal.trim();
+    if (airbnbIcal.trim()) insertObj.airbnb_ical = airbnbIcal.trim();
+    if (bookingIcal.trim()) insertObj.booking_ical = bookingIcal.trim();
     const { error } = await supabase.from('properties').insert(insertObj);
     setPropLoading(false);
     if (!error) {
@@ -88,14 +88,14 @@ const SettingsPage: React.FC = () => {
                 <li key={prop.id} className="text-gray-800 dark:text-gray-100">
                   <div className="font-semibold">{prop.name}</div>
                   <div className="text-sm text-gray-500 dark:text-gray-400">Location: {prop.location}</div>
-                  {prop.airbnb_ical_url && (
+                  {prop.airbnb_ical && (
                     <div className="text-xs text-blue-700 dark:text-blue-300 break-all">
-                      Airbnb iCal: <a href={prop.airbnb_ical_url} target="_blank" rel="noopener noreferrer" className="underline">{prop.airbnb_ical_url}</a>
+                      Airbnb iCal: <a href={prop.airbnb_ical} target="_blank" rel="noopener noreferrer" className="underline">{prop.airbnb_ical}</a>
                     </div>
                   )}
-                  {prop.booking_ical_url && (
+                  {prop.booking_ical && (
                     <div className="text-xs text-blue-700 dark:text-blue-300 break-all">
-                      Booking.com iCal: <a href={prop.booking_ical_url} target="_blank" rel="noopener noreferrer" className="underline">{prop.booking_ical_url}</a>
+                      Booking.com iCal: <a href={prop.booking_ical} target="_blank" rel="noopener noreferrer" className="underline">{prop.booking_ical}</a>
                     </div>
                   )}
                 </li>
