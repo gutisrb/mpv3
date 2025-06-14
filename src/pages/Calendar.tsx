@@ -1,105 +1,138 @@
-import React, { useEffect, useState } from "react";
-import { useApp } from "@/context/AppContext";
-import { supabase } from "@/api/supabaseClient";
-import FullCalendar from "@fullcalendar/react";
-import dayGridPlugin from "@fullcalendar/daygrid";
-import interactionPlugin from "@fullcalendar/interaction";
+import React, { useState } from 'react';
+import FullCalendar from '@fullcalendar/react';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import interactionPlugin from '@fullcalendar/interaction';
+import { useApp } from '@/context/AppContext';
+import { useBookings, useCreateBooking } from '@/api/dataHooks';
+import BookingModal from '@/components/calendar/BookingModal';
+import { Plus } from 'lucide-react';
 
-interface Booking {
-  id: string;
-  start_date: string;
-  end_date: string;
-  source: string;
-}
-
-const SOURCE_COLORS: Record<string, string> = {
-  airbnb: "#FF5A5F",
-  booking: "#003580",
-  direct: "#22c55e",
+const SOURCE_COLORS = {
+  airbnb: '#FF5A5F',
+  'booking.com': '#003580', 
+  manual: '#38B000',
+  web: '#38B000'
 };
 
-function getSourceColor(source: string) {
-  if (!source) return "#64748b";
-  const key = source.toLowerCase();
-  if (key.includes("airbnb")) return SOURCE_COLORS.airbnb;
-  if (key.includes("booking")) return SOURCE_COLORS.booking;
-  if (key.includes("direct")) return SOURCE_COLORS.direct;
-  return "#64748b";
-}
-
-const CalendarPage: React.FC = () => {
+const Calendar: React.FC = () => {
   const { currentProperty } = useApp();
-  const propertyId = currentProperty?.id;
-  const [events, setEvents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: bookings = [] } = useBookings(currentProperty?.id || '');
+  const createBooking = useCreateBooking();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedDates, setSelectedDates] = useState<{ start: Date; end: Date } | null>(null);
 
-  useEffect(() => {
-    if (!propertyId) {
-      setEvents([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    supabase
-      .from("bookings")
-      .select("id,start_date,end_date,source")
-      .eq("property_id", propertyId)
-      .then(({ data, error }) => {
-        if (error || !data) {
-          setEvents([]);
-        } else {
-          setEvents(
-            data.map((b: Booking) => ({
-              id: b.id,
-              title: b.source,
-              start: b.start_date,
-              end: b.end_date,
-              backgroundColor: getSourceColor(b.source),
-              borderColor: getSourceColor(b.source),
-              textColor: "#fff",
-            }))
-          );
-        }
-        setLoading(false);
-      });
-  }, [propertyId]);
+  // Transform bookings into calendar events
+  const events = React.useMemo(() => {
+    return bookings.map(booking => ({
+      id: booking.id,
+      title: '', // Empty title to avoid repetition
+      start: booking.start_date,
+      end: booking.end_date,
+      backgroundColor: SOURCE_COLORS[booking.source as keyof typeof SOURCE_COLORS] || '#6B7280',
+      borderColor: SOURCE_COLORS[booking.source as keyof typeof SOURCE_COLORS] || '#6B7280',
+      textColor: 'transparent', // Hide text
+      display: 'background', // Fill entire day cell
+      extendedProps: {
+        source: booking.source
+      }
+    }));
+  }, [bookings]);
 
-  if (!propertyId) {
+  const handleDateSelect = (selectInfo: any) => {
+    setSelectedDates({
+      start: selectInfo.start,
+      end: new Date(selectInfo.end.getTime() - 24 * 60 * 60 * 1000) // Adjust end date
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleCreateBooking = async (bookingData: {
+    start_date: string;
+    end_date: string;
+    source: 'airbnb' | 'booking.com' | 'manual' | 'web';
+  }) => {
+    if (!currentProperty) return;
+    
+    await createBooking.mutateAsync({
+      property_id: currentProperty.id,
+      user_id: 'temp-user-id', // This should come from auth
+      ...bookingData,
+    });
+  };
+
+  if (!currentProperty) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-slate-900">
-        <span className="text-lg text-gray-500 dark:text-gray-300">
-          Please select a property to view its calendar.
-        </span>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-slate-900">
-        <div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Plus className="w-8 h-8 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Property</h3>
+          <p className="text-gray-500">
+            Choose a property from the dropdown above to view its calendar.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 flex-1 flex flex-col bg-gray-50 dark:bg-slate-900">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow p-4">
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">{currentProperty.name}</h1>
+        <p className="text-gray-600 mt-1">Booking calendar and availability</p>
+      </div>
+
+      {/* Legend */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+        <div className="flex flex-wrap gap-4">
+          <div className="flex items-center">
+            <div className="w-4 h-4 rounded" style={{ backgroundColor: SOURCE_COLORS.airbnb }}></div>
+            <span className="ml-2 text-sm text-gray-700">Airbnb</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 rounded" style={{ backgroundColor: SOURCE_COLORS['booking.com'] }}></div>
+            <span className="ml-2 text-sm text-gray-700">Booking.com</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 rounded" style={{ backgroundColor: SOURCE_COLORS.manual }}></div>
+            <span className="ml-2 text-sm text-gray-700">Manual</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Calendar */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <FullCalendar
           plugins={[dayGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
           events={events}
+          selectable={true}
+          selectMirror={true}
+          select={handleDateSelect}
           height="auto"
           headerToolbar={{
-            left: "prev,next today",
-            center: "title",
-            right: "dayGridMonth,dayGridWeek,dayGridDay",
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth'
           }}
-          themeSystem="standard"
+          dayMaxEvents={false}
+          moreLinkClick="popover"
+          eventDisplay="background"
+          dayCellClassNames="border border-gray-200"
+          dayHeaderClassNames="bg-gray-50 text-gray-700 font-medium py-2"
         />
       </div>
+
+      <BookingModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleCreateBooking}
+        initialStartDate={selectedDates?.start}
+        initialEndDate={selectedDates?.end}
+      />
     </div>
   );
 };
 
-export default CalendarPage;
+export default Calendar;

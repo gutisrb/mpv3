@@ -62,44 +62,29 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }
   };
   
-  const modalVariants = {
-    hidden: { opacity: 0, scale: 0.9 },
-    visible: { opacity: 1, scale: 1 },
-    exit: { opacity: 0, scale: 0.9 },
-  };
-  
-  const overlayVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1 },
-    exit: { opacity: 0 },
-  };
-  
   return (
     <AnimatePresence>
       {isOpen && (
         <>
           <motion.div
             className="fixed inset-0 bg-black bg-opacity-50 z-40"
-            variants={overlayVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             onClick={onClose}
           />
           
           <motion.div
             className="fixed inset-0 flex items-center justify-center z-50 px-4"
-            variants={overlayVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
           >
             <motion.div
-              className="bg-white rounded-2xl shadow-xl w-full max-w-md"
-              variants={modalVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
+              className="bg-white rounded-xl shadow-xl w-full max-w-md"
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex justify-between items-center p-6 border-b">
@@ -159,9 +144,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   >
+                    <option value="manual">Manual</option>
                     <option value="airbnb">Airbnb</option>
                     <option value="booking.com">Booking.com</option>
-                    <option value="manual">Manual</option>
                     <option value="web">Web</option>
                   </select>
                 </div>

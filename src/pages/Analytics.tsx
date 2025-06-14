@@ -1,85 +1,217 @@
-import React, { useEffect, useState } from "react";
-import MetricCard from "@/components/MetricCard";
-import { useApp } from "@/context/AppContext";
-import { supabase } from "@/api/supabaseClient";
+import React from 'react';
+import { Calendar, Clock, TrendingUp, Users } from 'lucide-react';
+import { useApp } from '@/context/AppContext';
+import { useBookings } from '@/api/dataHooks';
+import { format, addDays, differenceInDays } from 'date-fns';
 
-interface PropertyMetrics {
-  conflicts: number;
-}
+const MetricCard: React.FC<{
+  title: string;
+  value: string | number;
+  icon: React.ReactNode;
+  description?: string;
+}> = ({ title, value, icon, description }) => (
+  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="flex items-center">
+      <div className="flex-shrink-0">
+        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+          {icon}
+        </div>
+      </div>
+      <div className="ml-4">
+        <p className="text-sm font-medium text-gray-600">{title}</p>
+        <p className="text-2xl font-semibold text-gray-900">{value}</p>
+        {description && <p className="text-sm text-gray-500 mt-1">{description}</p>}
+      </div>
+    </div>
+  </div>
+);
 
-const AnalyticsPage: React.FC = () => {
-  const { currentLocation, currentProperty } = useApp();
-  const [totalBookings, setTotalBookings] = useState<number | null>(null);
-  const [conflicts, setConflicts] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+const Analytics: React.FC = () => {
+  const { currentProperty } = useApp();
+  const { data: bookings = [] } = useBookings(currentProperty?.id || '');
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!currentLocation) return;
-      setLoading(true);
+  // Calculate analytics
+  const analytics = React.useMemo(() => {
+    if (!bookings.length) {
+      return {
+        nextGaps: [],
+        biggestGap: 0,
+        totalOpenNights: 30,
+        upcomingCheckins: [],
+        activeBookings: 0
+      };
+    }
 
-      // Count bookings for the location (all properties in location)
-      const { count, error } = await supabase
-        .from("bookings")
-        .select("*", { count: "exact", head: true })
-        .eq("location_id", currentLocation.id);
+    const now = new Date();
+    const thirtyDaysFromNow = addDays(now, 30);
+    const sevenDaysFromNow = addDays(now, 7);
 
-      setTotalBookings(typeof count === "number" ? count : 0);
+    // Sort bookings by start date
+    const sortedBookings = [...bookings]
+      .filter(booking => new Date(booking.end_date) >= now)
+      .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
 
-      // If a property is selected, fetch conflicts for that property
-      if (currentProperty) {
-        const { data, error: err2 } = await supabase.rpc("fn_property_metrics", {
-          p_property: currentProperty.id,
-        });
-        setConflicts(data && data[0] ? data[0].conflicts : 0);
-      } else {
-        setConflicts(null);
+    // Find gaps
+    const gaps: { start: Date; end: Date; days: number }[] = [];
+    let lastEndDate = now;
+
+    sortedBookings.forEach(booking => {
+      const startDate = new Date(booking.start_date);
+      if (startDate > lastEndDate && startDate <= thirtyDaysFromNow) {
+        const gapDays = differenceInDays(startDate, lastEndDate);
+        if (gapDays > 0) {
+          gaps.push({
+            start: lastEndDate,
+            end: startDate,
+            days: gapDays
+          });
+        }
       }
+      lastEndDate = new Date(Math.max(lastEndDate.getTime(), new Date(booking.end_date).getTime()));
+    });
 
-      setLoading(false);
+    // Add final gap if needed
+    if (lastEndDate < thirtyDaysFromNow) {
+      gaps.push({
+        start: lastEndDate,
+        end: thirtyDaysFromNow,
+        days: differenceInDays(thirtyDaysFromNow, lastEndDate)
+      });
+    }
+
+    // Get next 3 gaps
+    const nextGaps = gaps.slice(0, 3);
+
+    // Find biggest gap
+    const biggestGap = gaps.reduce((max, gap) => Math.max(max, gap.days), 0);
+
+    // Calculate total open nights
+    const totalOpenNights = gaps.reduce((total, gap) => total + gap.days, 0);
+
+    // Upcoming check-ins
+    const upcomingCheckins = sortedBookings
+      .filter(booking => {
+        const startDate = new Date(booking.start_date);
+        return startDate >= now && startDate <= sevenDaysFromNow;
+      })
+      .slice(0, 5);
+
+    // Active bookings
+    const activeBookings = bookings.filter(booking => {
+      const startDate = new Date(booking.start_date);
+      const endDate = new Date(booking.end_date);
+      return startDate <= thirtyDaysFromNow && endDate >= now;
+    }).length;
+
+    return {
+      nextGaps,
+      biggestGap,
+      totalOpenNights,
+      upcomingCheckins,
+      activeBookings
     };
+  }, [bookings]);
 
-    fetchData();
-  }, [currentLocation, currentProperty]);
-
-  if (!currentLocation) {
+  if (!currentProperty) {
     return (
-      <div className="p-6 flex-1 flex flex-col bg-gray-50 dark:bg-slate-900">
-        <div className="flex flex-1 items-center justify-center">
-          <span className="text-lg text-gray-500 dark:text-gray-300">
-            Pick a location to view analytics
-          </span>
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <TrendingUp className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Property</h3>
+          <p className="text-gray-500">
+            Choose a property from the dropdown above to view analytics.
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 flex-1 flex flex-col bg-gray-50 dark:bg-slate-900">
-      <div className="max-w-xs mx-auto mt-12 flex flex-col gap-6">
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
+        <p className="text-gray-600 mt-1">Insights for {currentProperty.name}</p>
+      </div>
+
+      {/* Key Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <MetricCard
-          title={
-            currentProperty
-              ? "Property bookings (all time)"
-              : "Total bookings (all properties)"
-          }
-          value={
-            totalBookings !== null
-              ? totalBookings.toString()
-              : "—"
-          }
-          loading={loading}
+          title="Total Open Nights (30d)"
+          value={analytics.totalOpenNights}
+          icon={<Calendar className="w-5 h-5 text-blue-600" />}
         />
-        {currentProperty && (
-          <MetricCard
-            title="Conflicts"
-            value={conflicts !== null ? conflicts.toString() : "—"}
-            loading={loading}
-          />
-        )}
+        <MetricCard
+          title="Biggest Gap This Month"
+          value={`${analytics.biggestGap} days`}
+          icon={<Clock className="w-5 h-5 text-blue-600" />}
+        />
+        <MetricCard
+          title="Upcoming Check-ins (7d)"
+          value={analytics.upcomingCheckins.length}
+          icon={<Users className="w-5 h-5 text-blue-600" />}
+        />
+        <MetricCard
+          title="Active Bookings"
+          value={analytics.activeBookings}
+          icon={<TrendingUp className="w-5 h-5 text-blue-600" />}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Next Empty Date Gaps */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Next 3 Empty Date Gaps</h3>
+          {analytics.nextGaps.length > 0 ? (
+            <div className="space-y-3">
+              {analytics.nextGaps.map((gap, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {format(gap.start, 'MMM d')} - {format(gap.end, 'MMM d')}
+                    </p>
+                    <p className="text-sm text-gray-500">{gap.days} days available</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                      Available
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500">No gaps found in the next 30 days</p>
+          )}
+        </div>
+
+        {/* Upcoming Check-ins */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Upcoming Check-ins (7 days)</h3>
+          {analytics.upcomingCheckins.length > 0 ? (
+            <div className="space-y-3">
+              {analytics.upcomingCheckins.map((booking) => (
+                <div key={booking.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {format(new Date(booking.start_date), 'MMM d, yyyy')}
+                    </p>
+                    <p className="text-sm text-gray-500 capitalize">{booking.source}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Check-in
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500">No check-ins in the next 7 days</p>
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
-export default AnalyticsPage;
+export default Analytics;

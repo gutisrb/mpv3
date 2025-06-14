@@ -1,8 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useApp } from "@/context/AppContext";
-
-const AVATAR_PLACEHOLDER =
-  'https://ui-avatars.com/api/?name=User&background=64748b&color=fff&rounded=true';
+import React from 'react';
+import { useApp } from '@/context/AppContext';
+import { ChevronDown, User } from 'lucide-react';
 
 const Header: React.FC = () => {
   const {
@@ -14,81 +12,67 @@ const Header: React.FC = () => {
     setProperty,
   } = useApp();
 
-  // Local state to avoid controlled/uncontrolled warning if context is async
-  const [selectedLocation, setSelectedLocation] = useState(currentLocation?.id || '');
-  const [selectedProperty, setSelectedProperty] = useState(currentProperty?.id || '');
-
-  // Sync with context
-  useEffect(() => {
-    setSelectedLocation(currentLocation?.id || '');
-  }, [currentLocation]);
-  useEffect(() => {
-    setSelectedProperty(currentProperty?.id || '');
-  }, [currentProperty]);
-
-  // Handle location change
   const handleLocationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const loc = locations.find(l => l.id === e.target.value) || null;
-    setSelectedLocation(loc?.id || '');
-    setLocation(loc);
+    const locationId = e.target.value;
+    const location = locations.find(l => l.id === locationId) || null;
+    setLocation(location);
     setProperty(null); // Reset property when location changes
   };
 
-  // Handle property change
   const handlePropertyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const prop = properties.find(p => p.id === e.target.value) || null;
-    setSelectedProperty(prop?.id || '');
-    setProperty(prop);
+    const propertyId = e.target.value;
+    const property = properties.find(p => p.id === propertyId) || null;
+    setProperty(property);
   };
 
   return (
-    <header className="sticky top-0 z-30 h-12 bg-white dark:bg-slate-800 shadow flex items-center px-4">
-      {/* Left: Brand */}
-      <div className="flex items-center min-w-[180px]">
-        <span className="text-2xl mr-2">🏠</span>
-        <span className="font-bold text-lg text-gray-800 dark:text-white">Channel Manager</span>
-      </div>
+    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
+      {/* Left side - empty for now */}
+      <div></div>
 
-      {/* Center: Pickers */}
-      <div className="flex-1 flex justify-center">
-        <div className="flex gap-4">
-          {/* Location Picker */}
+      {/* Center - Location and Property dropdowns */}
+      <div className="flex items-center space-x-4">
+        {/* Location Dropdown */}
+        <div className="relative">
           <select
-            className="rounded px-3 py-1 bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-white border border-gray-200 dark:border-slate-700 focus:outline-none"
-            value={selectedLocation}
+            value={currentLocation?.id || ''}
             onChange={handleLocationChange}
+            className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-8 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="">Select location</option>
-            {locations.map((loc) => (
-              <option key={loc.id} value={loc.id}>
-                {loc.name}
+            <option value="">All Locations</option>
+            {locations.map((location) => (
+              <option key={location.id} value={location.id}>
+                {location.name}
               </option>
             ))}
           </select>
-          {/* Property Picker */}
+          <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        </div>
+
+        {/* Property Dropdown */}
+        <div className="relative">
           <select
-            className="rounded px-3 py-1 bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-white border border-gray-200 dark:border-slate-700 focus:outline-none"
-            value={selectedProperty}
+            value={currentProperty?.id || ''}
             onChange={handlePropertyChange}
             disabled={!currentLocation}
+            className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-8 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
           >
-            <option value="">Select property</option>
-            {properties.map((prop) => (
-              <option key={prop.id} value={prop.id}>
-                {prop.name}
+            <option value="">All Properties</option>
+            {properties.map((property) => (
+              <option key={property.id} value={property.id}>
+                {property.name}
               </option>
             ))}
           </select>
+          <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
         </div>
       </div>
 
-      {/* Right: Avatar */}
-      <div className="flex items-center min-w-[48px] justify-end">
-        <img
-          src={AVATAR_PLACEHOLDER}
-          alt="User avatar"
-          className="w-8 h-8 rounded-full border border-slate-300 dark:border-slate-700"
-        />
+      {/* Right side - User avatar */}
+      <div className="flex items-center">
+        <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+          <User className="w-5 h-5 text-gray-600" />
+        </div>
       </div>
     </header>
   );

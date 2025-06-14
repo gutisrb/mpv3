@@ -1,24 +1,30 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Calendar, BarChart2, Settings } from 'lucide-react';
+import { Home, Calendar, BarChart3, Settings } from 'lucide-react';
 
 const navItems = [
-  { to: '/dashboard', icon: <Home size={20} />, label: 'Dashboard' },
-  { to: '/calendar', icon: <Calendar size={20} />, label: 'Calendar' },
-  { to: '/analytics', icon: <BarChart2 size={20} />, label: 'Analytics' },
+  { to: '/dashboard', icon: Home, label: 'Dashboard' },
+  { to: '/calendar', icon: Calendar, label: 'Calendar' },
+  { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+  { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 const Sidebar: React.FC = () => {
   return (
-    <aside className="w-56 min-h-screen bg-slate-900 text-white flex flex-col fixed lg:relative z-30">
-      {/* Top: Brand */}
-      <div className="flex items-center h-16 px-6 border-b border-slate-800">
-        <span className="text-2xl mr-2">🏠</span>
-        <span className="font-bold text-lg">Channel Manager</span>
+    <aside className="w-64 bg-white shadow-sm border-r border-gray-200 flex flex-col">
+      {/* Logo */}
+      <div className="flex items-center h-16 px-6 border-b border-gray-200">
+        <div className="flex items-center">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+            <Home className="w-5 h-5 text-white" />
+          </div>
+          <span className="ml-3 text-xl font-semibold text-gray-900">PropertyHub</span>
+        </div>
       </div>
-      {/* Menu */}
-      <nav className="flex-1 px-2 py-6">
-        <ul className="space-y-1">
+
+      {/* Navigation */}
+      <nav className="flex-1 px-4 py-6">
+        <ul className="space-y-2">
           {navItems.map((item) => (
             <li key={item.to}>
               <NavLink
@@ -26,34 +32,18 @@ const Sidebar: React.FC = () => {
                 className={({ isActive }) =>
                   `flex items-center px-4 py-3 rounded-lg transition-colors ${
                     isActive
-                      ? 'bg-slate-800 text-white'
-                      : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+                      ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   }`
                 }
               >
-                <span className="mr-3">{item.icon}</span>
-                <span>{item.label}</span>
+                <item.icon className="w-5 h-5 mr-3" />
+                <span className="font-medium">{item.label}</span>
               </NavLink>
             </li>
           ))}
         </ul>
       </nav>
-      {/* Bottom: Settings */}
-      <div className="mt-auto px-2 pb-6">
-        <NavLink
-          to="/settings"
-          className={({ isActive }) =>
-            `flex items-center px-4 py-3 rounded-lg transition-colors ${
-              isActive
-                ? 'bg-slate-800 text-white'
-                : 'text-slate-200 hover:bg-slate-800 hover:text-white'
-            }`
-          }
-        >
-          <Settings size={20} className="mr-3" />
-          <span>Settings</span>
-        </NavLink>
-      </div>
     </aside>
   );
 };

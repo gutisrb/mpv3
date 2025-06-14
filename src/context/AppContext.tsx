@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '@/api/supabaseClient';
+import { useProperties } from '@/api/dataHooks';
 
 interface Location {
   id: string;
@@ -9,7 +9,7 @@ interface Location {
 interface Property {
   id: string;
   name: string;
-  location_id: string;
+  location: string;
 }
 
 interface AppContextValue {
@@ -31,37 +31,44 @@ const AppContext = createContext<AppContextValue>({
 });
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [properties, setProperties] = useState<Property[]>([]);
+  const { data: allProperties } = useProperties();
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [currentProperty, setCurrentProperty] = useState<Property | null>(null);
 
-  // Fetch all locations on mount
-  useEffect(() => {
-    const fetchLocations = async () => {
-      const { data, error } = await supabase.from('locations').select('*');
-      if (!error && data) setLocations(data as Location[]);
-    };
-    fetchLocations();
-  }, []);
+  // Extract unique locations from properties
+  const locations = React.useMemo(() => {
+    if (!allProperties) return [];
+    
+    const uniqueLocations = new Set<string>();
+    const locationList: Location[] = [];
+    
+    allProperties.forEach(property => {
+      if (!uniqueLocations.has(property.location)) {
+        uniqueLocations.add(property.location);
+        locationList.push({
+          id: property.location,
+          name: property.location
+        });
+      }
+    });
+    
+    return locationList.sort((a, b) => a.name.localeCompare(b.name));
+  }, [allProperties]);
 
-  // Fetch properties for current location
+  // Filter properties based on current location
+  const properties = React.useMemo(() => {
+    if (!allProperties) return [];
+    if (!currentLocation) return allProperties;
+    
+    return allProperties.filter(property => property.location === currentLocation.id);
+  }, [allProperties, currentLocation]);
+
+  // Reset property when location changes
   useEffect(() => {
-    if (!currentLocation) {
-      setProperties([]);
+    if (currentProperty && currentLocation && currentProperty.location !== currentLocation.id) {
       setCurrentProperty(null);
-      return;
     }
-    const fetchProperties = async () => {
-      const { data, error } = await supabase
-        .from('properties')
-        .select('*')
-        .eq('location_id', currentLocation.id);
-      if (!error && data) setProperties(data as Property[]);
-    };
-    fetchProperties();
-    setCurrentProperty(null);
-  }, [currentLocation]);
+  }, [currentLocation, currentProperty]);
 
   return (
     <AppContext.Provider
