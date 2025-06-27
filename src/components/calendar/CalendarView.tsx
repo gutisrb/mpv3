@@ -139,14 +139,14 @@ const CustomToolbar = (props: any) => {
           onClick={() => navigate('PREV')}
           className="px-3 py-2 mr-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
         >
-          <
+          &lt;
         </button>
         <button
           type="button"
           onClick={() => navigate('NEXT')}
           className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
         >
-          >
+          &gt;
         </button>
       </div>
       
