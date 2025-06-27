@@ -8,8 +8,8 @@ import BookingModal from '@/components/calendar/BookingModal';
 import { Plus } from 'lucide-react';
 
 const SOURCE_COLORS = {
-  airbnb: '#FF5A5F',
-  'booking.com': '#003580', 
+  airbnb: '#fd5c63',
+  'booking.com': '#499FDD', 
   manual: '#38B000',
   web: '#38B000'
 };

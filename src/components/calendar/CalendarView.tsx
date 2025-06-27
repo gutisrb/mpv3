@@ -32,16 +32,16 @@ const CalendarView: React.FC<CalendarViewProps> = ({ bookings, onSelectSlot, onS
       let backgroundColor;
       switch (booking.source) {
         case 'airbnb':
-          backgroundColor = '#3182ce'; // blue
+          backgroundColor = '#fd5c63'; // Updated Airbnb color
           break;
         case 'booking.com':
-          backgroundColor = '#38a169'; // green
+          backgroundColor = '#499FDD'; // Updated Booking.com color
           break;
         case 'manual':
-          backgroundColor = '#718096'; // gray
+          backgroundColor = '#38B000'; // green
           break;
         case 'web':
-          backgroundColor = '#ed8936'; // orange
+          backgroundColor = '#38B000'; // green
           break;
         default:
           backgroundColor = '#718096'; // default gray
@@ -139,14 +139,14 @@ const CustomToolbar = (props: any) => {
           onClick={() => navigate('PREV')}
           className="px-3 py-2 mr-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
         >
-          &lt;
+          <
         </button>
         <button
           type="button"
           onClick={() => navigate('NEXT')}
           className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
         >
-          &gt;
+          >
         </button>
       </div>
       
