@@ -38,11 +38,28 @@ const Calendar: React.FC = () => {
     }));
   }, [bookings]);
 
-  const handleDateSelect = (selectInfo: any) => {
-    setSelectedDates({
-      start: selectInfo.start,
-      end: new Date(selectInfo.end.getTime() - 24 * 60 * 60 * 1000) // Adjust end date
+  // Check if a date range overlaps with existing bookings
+  const isDateRangeBooked = (start: Date, end: Date) => {
+    return bookings.some(booking => {
+      const bookingStart = new Date(booking.start_date);
+      const bookingEnd = new Date(booking.end_date);
+      
+      // Check if the selected range overlaps with any existing booking
+      return (start < bookingEnd && end > bookingStart);
     });
+  };
+
+  const handleDateSelect = (selectInfo: any) => {
+    const start = selectInfo.start;
+    const end = new Date(selectInfo.end.getTime() - 24 * 60 * 60 * 1000); // Adjust end date
+    
+    // Check if any part of the selected range is already booked
+    if (isDateRangeBooked(start, end)) {
+      // Don't open modal if dates are already booked
+      return;
+    }
+    
+    setSelectedDates({ start, end });
     setIsModalOpen(true);
   };
 
@@ -121,6 +138,9 @@ const Calendar: React.FC = () => {
           eventDisplay="background"
           dayCellClassNames="border border-gray-200"
           dayHeaderClassNames="bg-gray-50 text-gray-700 font-medium py-2"
+          selectConstraint={{
+            // This will be handled by our custom logic in handleDateSelect
+          }}
         />
       </div>
 
