@@ -7,6 +7,10 @@ import Dashboard from '@/pages/Dashboard';
 import Calendar from '@/pages/Calendar';
 import Analytics from '@/pages/Analytics';
 import Settings from '@/pages/Settings';
+import Properties from '@/pages/Properties';
+import PropertyDetail from '@/pages/PropertyDetail';
+import Locations from '@/pages/Locations';
+import LocationDetail from '@/pages/LocationDetail';
 import { AppProvider } from '@/context/AppContext';
 
 const queryClient = new QueryClient();
@@ -26,6 +30,10 @@ export default function App() {
                   <Route path="/calendar" element={<Calendar />} />
                   <Route path="/analytics" element={<Analytics />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/properties" element={<Properties />} />
+                  <Route path="/properties/:id" element={<PropertyDetail />} />
+                  <Route path="/locations" element={<Locations />} />
+                  <Route path="/locations/:location" element={<LocationDetail />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
               </main>
