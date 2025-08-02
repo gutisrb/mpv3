@@ -77,6 +77,9 @@ const PropertyDetail: React.FC = () => {
   if (!property) {
     return (
       <div className="p-6">
+        <div style={{backgroundColor: 'red', color: 'white', padding: '20px', fontSize: '24px'}}>
+  HELLO - THIS IS A TEST - YOU SHOULD SEE THIS RED BOX
+</div>
         <div className="bg-white rounded-2xl shadow-md p-8 text-center">
           <h3 className="text-lg font-medium text-gray-900">Property not found</h3>
           <p className="mt-2 text-gray-500">
