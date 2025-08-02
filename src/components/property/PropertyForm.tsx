@@ -9,7 +9,7 @@ interface PropertyFormProps {
     booking_ical?: string;
   }) => void;
   isSubmitting?: boolean;
-  submitButtonText?: string; // Add this line
+  submitButtonText?: string;  // ← ADD THIS LINE
   initialData?: {
     name?: string;
     location?: string;
@@ -21,7 +21,7 @@ interface PropertyFormProps {
 const PropertyForm: React.FC<PropertyFormProps> = ({
   onSubmit,
   isSubmitting = false,
-  submitButtonText = 'Create Property', // Add this line with default
+  submitButtonText = 'Save Property',  // ← ADD THIS LINE WITH DEFAULT
   initialData = {}
 }) => {
   const [name, setName] = React.useState(initialData.name || '');
