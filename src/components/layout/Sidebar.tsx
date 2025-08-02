@@ -1,11 +1,13 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+// In src/components/layout/Sidebar.tsx, update the imports:
 import { Home, Calendar, BarChart3, Settings, Building2, MapPin } from 'lucide-react';
 
+// And update the navItems array:
 const navItems = [
   { to: '/dashboard', icon: Home, label: 'Dashboard' },
-  { to: '/properties', icon: Building2, label: 'Properties' },  // ← ADD THIS
-  { to: '/locations', icon: MapPin, label: 'Locations' },       // ← ADD THIS  
+  { to: '/properties', icon: Building2, label: 'Properties' },
+  { to: '/locations', icon: MapPin, label: 'Locations' },
   { to: '/calendar', icon: Calendar, label: 'Calendar' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/settings', icon: Settings, label: 'Settings' },
