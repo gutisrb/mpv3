@@ -17,10 +17,10 @@ const PropertyDetail: React.FC = () => {
   const deleteBooking = useDeleteBooking();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [selectedDates, setSelectedDates] = useState<{ start: Date; end: Date } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
   const handleSelectSlot = (start: Date, end: Date) => {
     setSelectedDates({ start, end });
