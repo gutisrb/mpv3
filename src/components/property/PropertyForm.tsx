@@ -21,6 +21,7 @@ interface PropertyFormProps {
 const PropertyForm: React.FC<PropertyFormProps> = ({
   onSubmit,
   isSubmitting = false,
+  submitButtonText = 'Create Property', // Add this line with default
   initialData = {}
 }) => {
   const [name, setName] = React.useState(initialData.name || '');
