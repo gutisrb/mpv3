@@ -9,6 +9,7 @@ interface PropertyFormProps {
     booking_ical?: string;
   }) => void;
   isSubmitting?: boolean;
+  submitButtonText?: string; // Add this line
   initialData?: {
     name?: string;
     location?: string;
