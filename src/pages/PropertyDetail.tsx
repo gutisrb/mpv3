@@ -108,11 +108,12 @@ const PropertyDetail: React.FC = () => {
         
         <div className="flex gap-3">
           <button
-            className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-          >
-            <Edit size={18} className="mr-2" />
-            Edit Property
-          </button>
+  onClick={() => setIsEditModalOpen(true)}
+  className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+>
+  <Edit size={18} className="mr-2" />
+  Edit Property
+</button>
           
           <button
             onClick={() => setIsModalOpen(true)}
@@ -265,6 +266,7 @@ const PropertyDetail: React.FC = () => {
         initialStartDate={selectedDates?.start}
         initialEndDate={selectedDates?.end}
       />
+      
     </div>
   );
 };
