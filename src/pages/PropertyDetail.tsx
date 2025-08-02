@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
 import { useProperty, useBookings, useCreateBooking, useDeleteBooking } from '../api/dataHooks';
 import CalendarView from '../components/calendar/CalendarView';
 import BookingModal from '../components/calendar/BookingModal';
+import { Edit } from 'lucide-react';
+import EditPropertyModal from '../components/property/EditPropertyModal';
 
 const PropertyDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +19,7 @@ const PropertyDetail: React.FC = () => {
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [selectedDates, setSelectedDates] = useState<{ start: Date; end: Date } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
   const handleSelectSlot = (start: Date, end: Date) => {
     setSelectedDates({ start, end });
@@ -111,31 +114,37 @@ const PropertyDetail: React.FC = () => {
         >
           <Plus size={18} className="mr-2" />
           Add Booking
-        </button>
-      </div>
-      
-      <div className="bg-white rounded-2xl shadow-md p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-4">Channel Manager Integration</h2>
-        
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Integration Link
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={channelLink}
-                readOnly
-                className="flex-1 p-2 bg-gray-50 border border-gray-300 rounded-lg text-gray-600"
-              />
-              <button
-                onClick={handleCopyLink}
-                className="p-2 text-gray-600 hover:text-gray-800 rounded-lg hover:bg-gray-100"
-                title="Copy link"
-              >
-                {copied ? <Check className="w-5 h-5 text-green-600" /> : <Copy className="w-5 h-5" />}
-              </button>
+   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+  <div>
+    <Link
+      to="/properties"
+      className="flex items-center text-blue-600 hover:text-blue-800 mb-2"
+    >
+      <ArrowLeft size={16} className="mr-1" />
+      Back to Properties
+    </Link>
+    <h1 className="text-2xl font-bold text-gray-800">{property.name}</h1>
+    <p className="text-gray-600">{property.location}</p>
+  </div>
+  
+  <div className="flex gap-3">
+    <button
+      onClick={() => setIsEditModalOpen(true)}
+      className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+    >
+      <Edit size={18} className="mr-2" />
+      Edit Property
+    </button>
+    
+    <button
+      onClick={() => setIsModalOpen(true)}
+      className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+    >
+      <Plus size={18} className="mr-2" />
+      Add Booking
+    </button>
+  </div>
+</div>
             </div>
             <p className="mt-2 text-sm text-gray-600">
               Paste this link into Airbnb (Calendar → Sync → Import) and Booking.com (Calendar sync → Import).
