@@ -98,13 +98,13 @@ const PropertyForm: React.FC<PropertyFormProps> = ({
       </div>
 
       <div className="flex justify-end space-x-3 pt-4">
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-        >
-          {isSubmitting ? 'Saving...' : 'Save Property'}
-        </button>
+      <button
+  type="submit"
+  disabled={isSubmitting}
+  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+>
+  {isSubmitting ? 'Saving...' : submitButtonText}
+</button>
       </div>
     </form>
   );
