@@ -379,3 +379,34 @@ export const useCreateProperty = () => {
     },
   });
 }
+export const useUpdateProperty = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ 
+      propertyId, 
+      updates 
+    }: { 
+      propertyId: string; 
+      updates: Partial<Pick<Property, 'name' | 'location' | 'airbnb_ical' | 'booking_ical'>> 
+    }) => {
+      const { data, error } = await supabase
+        .from('properties')
+        .update(updates)
+        .eq('id', propertyId)
+        .select()
+        .single();
+        
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      return data as Property;
+    },
+    onSuccess: (updatedProperty) => {
+      // Invalidate and refetch property queries
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      queryClient.invalidateQueries({ queryKey: ['property', updatedProperty.id] });
+    },
+  });
+};
