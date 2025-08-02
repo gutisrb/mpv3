@@ -1,5 +1,3 @@
-// Replace your ENTIRE PropertyDetail.tsx file with this:
-
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Copy, Check, Edit } from 'lucide-react';
@@ -7,7 +5,6 @@ import { motion } from 'framer-motion';
 import { useProperty, useBookings, useCreateBooking, useDeleteBooking } from '../api/dataHooks';
 import CalendarView from '../components/calendar/CalendarView';
 import BookingModal from '../components/calendar/BookingModal';
-import EditPropertyModal from '../components/property/EditPropertyModal';
 
 const PropertyDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,7 +17,6 @@ const PropertyDetail: React.FC = () => {
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [selectedDates, setSelectedDates] = useState<{ start: Date; end: Date } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
   const handleSelectSlot = (start: Date, end: Date) => {
     setSelectedDates({ start, end });
@@ -40,6 +36,7 @@ const PropertyDetail: React.FC = () => {
         ...bookingData,
       });
     } catch (error) {
+      // Re-throw the error to be handled by the modal
       throw error;
     }
   };
@@ -110,7 +107,6 @@ const PropertyDetail: React.FC = () => {
         
         <div className="flex gap-3">
           <button
-            onClick={() => setIsEditModalOpen(true)}
             className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
           >
             <Edit size={18} className="mr-2" />
@@ -267,12 +263,6 @@ const PropertyDetail: React.FC = () => {
         onSubmit={handleCreateBooking}
         initialStartDate={selectedDates?.start}
         initialEndDate={selectedDates?.end}
-      />
-
-      <EditPropertyModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        property={property}
       />
     </div>
   );
