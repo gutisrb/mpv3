@@ -83,6 +83,7 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({
                 <PropertyForm
                   onSubmit={handleSubmit}
                   isSubmitting={updateProperty.isPending}
+                  submitButtonText="Update Property"
                   initialData={{
                     name: property.name,
                     location: property.location,
