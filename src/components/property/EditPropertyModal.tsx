@@ -92,6 +92,11 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({
                   }}
                 />
               </div>
+              <EditPropertyModal
+  isOpen={isEditModalOpen}
+  onClose={() => setIsEditModalOpen(false)}
+  property={property}
+/>
             </div>
           </motion.div>
         </>
