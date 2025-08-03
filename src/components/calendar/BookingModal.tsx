@@ -38,18 +38,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }
   }, [initialStartDate, initialEndDate]);
 
+  // SIMPLIFIED: Only 3 booking sources - removed "direct booking"
   const sourceOptions = [
     { 
       value: 'manual' as const, 
-      label: 'Direct Booking', 
-      color: 'bg-emerald-500',
-      description: 'Guest booked directly with you'
-    },
-    { 
-      value: 'web' as const, 
       label: 'Website Booking', 
       color: 'bg-amber-500',
-      description: 'Booking through your website'
+      description: 'Manual booking or website booking'
     },
     { 
       value: 'airbnb' as const, 
@@ -62,7 +57,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       label: 'Booking.com', 
       color: 'bg-blue-600',
       description: 'Booking from Booking.com platform'
-    },
+    }
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -228,18 +223,18 @@ const BookingModal: React.FC<BookingModalProps> = ({
                       </div>
                     </div>
                     
-                    {/* Source Selection */}
+                    {/* Source Selection - SIMPLIFIED */}
                     <div className="space-y-4">
                       <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                         <MapPin className="w-4 h-4 text-blue-600" />
                         Booking Source
                       </h3>
                       
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3">
                         {sourceOptions.map((option) => (
                           <label
                             key={option.value}
-                            className={`relative flex flex-col p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
+                            className={`relative flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
                               source === option.value
                                 ? 'border-blue-500 bg-blue-50'
                                 : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
@@ -252,11 +247,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
                               onChange={(e) => setSource(e.target.value as typeof source)}
                               className="sr-only"
                             />
-                            <div className="flex items-center gap-3 mb-2">
-                              <div className={`w-3 h-3 rounded-full ${option.color}`}></div>
-                              <span className="font-medium text-gray-900">{option.label}</span>
+                            <div className="flex items-center gap-3 flex-1">
+                              <div className={`w-4 h-4 rounded-full ${option.color}`}></div>
+                              <div className="flex-1">
+                                <span className="font-medium text-gray-900 block">{option.label}</span>
+                                <span className="text-sm text-gray-600">{option.description}</span>
+                              </div>
                             </div>
-                            <span className="text-xs text-gray-600">{option.description}</span>
                           </label>
                         ))}
                       </div>
