@@ -7,12 +7,12 @@ import { useBookings, useCreateBooking } from '@/api/dataHooks';
 import BookingModal from '@/components/calendar/BookingModal';
 import { Plus } from 'lucide-react';
 
-// Correct colors matching your requirements
+// ACTUAL COLOR VALUES - THESE NEED TO WORK
 const SOURCE_COLORS = {
-  airbnb: '#FF5A5F',      // Airbnb red
-  'booking.com': '#003580', // Booking.com blue  
-  manual: '#F59E0B',      // Yellow for manual bookings
-  web: '#F59E0B'          // Yellow for web bookings (same as manual)
+  airbnb: '#FF5A5F',
+  'booking.com': '#003580',
+  manual: '#F59E0B',
+  web: '#F59E0B'
 };
 
 const Calendar: React.FC = () => {
@@ -22,70 +22,57 @@ const Calendar: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDates, setSelectedDates] = useState<{ start: Date; end: Date } | null>(null);
 
-  // Transform bookings into calendar events - FIXED source detection
+  // COMPLETELY REWRITTEN EVENT TRANSFORMATION
   const events = React.useMemo(() => {
+    console.log('All bookings:', bookings);
+    
     return bookings.map(booking => {
-      // Debug: Log the actual booking source
-      console.log('Booking source from database:', booking.source, 'for booking:', booking.id);
+      console.log('Processing booking:', booking.id, 'Source:', booking.source);
       
-      // ✅ FIXED: More robust color mapping
-      let sourceColor = '#6B7280'; // Default gray
+      // EXPLICIT color assignment
+      let color = '#6B7280'; // gray fallback
+      let title = 'Unknown';
+      
       if (booking.source === 'airbnb') {
-        sourceColor = SOURCE_COLORS.airbnb;
+        color = '#FF5A5F'; // red
+        title = 'Airbnb';
+        console.log('Airbnb booking detected - setting red color');
       } else if (booking.source === 'booking.com') {
-        sourceColor = SOURCE_COLORS['booking.com'];
+        color = '#003580'; // blue
+        title = 'Booking.com';
+        console.log('Booking.com booking detected - setting blue color');
       } else if (booking.source === 'manual' || booking.source === 'web') {
-        sourceColor = SOURCE_COLORS.manual;
+        color = '#F59E0B'; // yellow
+        title = 'Website';
+        console.log('Manual/web booking detected - setting yellow color');
       }
       
-      console.log('Applied color:', sourceColor, 'for source:', booking.source);
+      console.log('Final color for booking', booking.id, ':', color);
       
-      // Add one day to end date because FullCalendar treats end as exclusive
+      // Add one day to end for FullCalendar
       const endDate = new Date(booking.end_date);
       endDate.setDate(endDate.getDate() + 1);
       
-      // Get correct display name based on actual source
-      let displayTitle = 'Unknown';
-      switch (booking.source) {
-        case 'airbnb':
-          displayTitle = 'Airbnb';
-          break;
-        case 'booking.com':
-          displayTitle = 'Booking.com';
-          break;
-        case 'manual':
-        case 'web':
-          displayTitle = 'Website';
-          break;
-        default:
-          displayTitle = booking.source || 'Unknown';
-      }
-      
       return {
         id: booking.id,
-        title: displayTitle,
+        title: title,
         start: booking.start_date,
         end: endDate.toISOString().split('T')[0],
-        backgroundColor: sourceColor,
-        borderColor: sourceColor,
-        textColor: 'white',
-        display: 'background', // ✅ FILLS ENTIRE DAY CELL
-        classNames: ['booking-background'],
+        backgroundColor: color,
+        borderColor: color,
+        textColor: '#FFFFFF',
+        display: 'background',
         extendedProps: {
-          source: booking.source,
-          originalTitle: displayTitle
+          source: booking.source
         }
       };
     });
   }, [bookings]);
 
-  // Check if a date range overlaps with existing bookings
   const isDateRangeBooked = (start: Date, end: Date) => {
     return bookings.some(booking => {
       const bookingStart = new Date(booking.start_date);
       const bookingEnd = new Date(booking.end_date);
-      
-      // Check if the selected range overlaps with any existing booking
       return (start < bookingEnd && end > bookingStart);
     });
   };
@@ -94,9 +81,7 @@ const Calendar: React.FC = () => {
     const start = selectInfo.start;
     const end = selectInfo.end;
     
-    // Check if any part of the selected range is already booked
     if (isDateRangeBooked(start, end)) {
-      // Don't open modal if dates are already booked
       return;
     }
     
@@ -111,10 +96,9 @@ const Calendar: React.FC = () => {
   }) => {
     if (!currentProperty) return;
     
-    // Always use 'manual' for manually created bookings
     await createBooking.mutateAsync({
       property_id: currentProperty.id,
-      user_id: 'temp-user-id', // This should come from auth
+      user_id: 'temp-user-id',
       start_date: bookingData.start_date,
       end_date: bookingData.end_date,
       source: 'manual' // Always manual for user-created bookings
@@ -144,35 +128,26 @@ const Calendar: React.FC = () => {
         <p className="text-gray-600">Manage your bookings and availability</p>
       </div>
 
-      {/* Legend with correct colors */}
+      {/* Legend */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Booking Sources</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-red-50 to-red-100 border border-red-200">
-            <div 
-              className="w-4 h-4 rounded-full mr-3 shadow-sm" 
-              style={{ backgroundColor: SOURCE_COLORS.airbnb }}
-            ></div>
+            <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: '#FF5A5F' }}></div>
             <span className="text-sm font-medium text-gray-800">Airbnb</span>
           </div>
           <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200">
-            <div 
-              className="w-4 h-4 rounded-full mr-3 shadow-sm" 
-              style={{ backgroundColor: SOURCE_COLORS['booking.com'] }}
-            ></div>
+            <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: '#003580' }}></div>
             <span className="text-sm font-medium text-gray-800">Booking.com</span>
           </div>
           <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-amber-50 to-amber-100 border border-amber-200">
-            <div 
-              className="w-4 h-4 rounded-full mr-3 shadow-sm" 
-              style={{ backgroundColor: SOURCE_COLORS.manual }}
-            ></div>
+            <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: '#F59E0B' }}></div>
             <span className="text-sm font-medium text-gray-800">Website</span>
           </div>
         </div>
       </div>
 
-      {/* Enhanced Calendar with background fills */}
+      {/* Calendar */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <style jsx global>{`
           .fc {
@@ -208,52 +183,12 @@ const Calendar: React.FC = () => {
             box-shadow: 0 4px 12px 0 rgba(59, 130, 246, 0.4) !important;
           }
           
-          .fc-button:disabled {
-            background: #94a3b8 !important;
-            transform: none !important;
-            box-shadow: none !important;
-          }
-          
           .fc-daygrid-day {
             border: 1px solid #f1f5f9 !important;
             transition: background-color 0.2s ease;
             position: relative;
           }
           
-          .fc-daygrid-day:hover {
-            background-color: #f8fafc !important;
-          }
-          
-          .fc-daygrid-day-top {
-            padding: 0.5rem;
-            position: relative;
-            z-index: 2;
-          }
-          
-          .fc-day-today {
-            background-color: #dbeafe !important;
-            border-color: #3b82f6 !important;
-          }
-          
-          .fc-col-header-cell {
-            background: #f8fafc;
-            border-color: #e2e8f0 !important;
-            font-weight: 600;
-            color: #475569;
-            padding: 0.75rem 0;
-          }
-          
-          /* ✅ BACKGROUND EVENTS - FILL ENTIRE CELL */
-          .fc-bg-event {
-            opacity: 0.8 !important;
-            border: none !important;
-          }
-          
-          .booking-background {
-            opacity: 0.8 !important;
-          }
-          
-          /* Make day numbers visible over background */
           .fc-daygrid-day-number {
             position: relative !important;
             z-index: 3 !important;
@@ -262,7 +197,11 @@ const Calendar: React.FC = () => {
             text-shadow: 0 0 3px rgba(255, 255, 255, 0.8) !important;
           }
           
-          /* Source label overlay */
+          .fc-bg-event {
+            opacity: 0.8 !important;
+            border: none !important;
+          }
+          
           .fc-event-title {
             position: absolute !important;
             bottom: 2px !important;
@@ -274,24 +213,6 @@ const Calendar: React.FC = () => {
             color: white !important;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
             z-index: 4 !important;
-          }
-          
-          .fc-daygrid-body {
-            border-color: #f1f5f9 !important;
-          }
-          
-          .fc-scrollgrid {
-            border-color: #e2e8f0 !important;
-          }
-          
-          .fc-daygrid-day-frame {
-            min-height: 4rem;
-            position: relative;
-          }
-          
-          /* Ensure today highlight works with background events */
-          .fc-day-today .fc-bg-event {
-            opacity: 0.9 !important;
           }
         `}</style>
         
@@ -308,27 +229,18 @@ const Calendar: React.FC = () => {
             center: 'title',
             right: ''
           }}
-          dayMaxEvents={false} // ✅ CHANGED: Allow background events to show
+          dayMaxEvents={false}
           moreLinkClick="popover"
-          eventDisplay="background" // ✅ BACKGROUND FILL
+          eventDisplay="background"
           fixedWeekCount={false}
           showNonCurrentDates={false}
           dayHeaderFormat={{ weekday: 'short' }}
           buttonText={{
-            today: 'Today',
-            prev: '',
-            next: ''
+            today: 'Today'
           }}
           buttonIcons={{
             prev: 'chevron-left',
             next: 'chevron-right'
-          }}
-          selectConstraint={{}}
-          eventContent={(eventInfo) => {
-            // Custom render to show source name
-            return {
-              html: `<div class="booking-label">${eventInfo.event.title}</div>`
-            };
           }}
         />
       </div>
