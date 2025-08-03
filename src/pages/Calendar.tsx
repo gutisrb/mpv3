@@ -7,7 +7,7 @@ import { useBookings, useCreateBooking } from '@/api/dataHooks';
 import BookingModal from '@/components/calendar/BookingModal';
 import { Plus } from 'lucide-react';
 
-// CORRECTED: Simplified booking sources with correct colors
+// Correct colors matching your requirements
 const SOURCE_COLORS = {
   airbnb: '#FF5A5F',      // Airbnb red
   'booking.com': '#003580', // Booking.com blue  
@@ -22,27 +22,48 @@ const Calendar: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDates, setSelectedDates] = useState<{ start: Date; end: Date } | null>(null);
 
-  // Transform bookings into calendar events with correct colors
+  // Transform bookings into calendar events - FIXED source detection
   const events = React.useMemo(() => {
     return bookings.map(booking => {
+      // Debug: Log the actual booking source
+      console.log('Booking source from database:', booking.source, 'for booking:', booking.id);
+      
       const sourceColor = SOURCE_COLORS[booking.source as keyof typeof SOURCE_COLORS] || '#6B7280';
       
-      // ✅ FIXED: Add one day to end date because FullCalendar treats end as exclusive
+      // Add one day to end date because FullCalendar treats end as exclusive
       const endDate = new Date(booking.end_date);
       endDate.setDate(endDate.getDate() + 1);
       
+      // Get correct display name based on actual source
+      let displayTitle = 'Unknown';
+      switch (booking.source) {
+        case 'airbnb':
+          displayTitle = 'Airbnb';
+          break;
+        case 'booking.com':
+          displayTitle = 'Booking.com';
+          break;
+        case 'manual':
+        case 'web':
+          displayTitle = 'Website';
+          break;
+        default:
+          displayTitle = booking.source || 'Unknown';
+      }
+      
       return {
         id: booking.id,
-        title: booking.source === 'airbnb' ? 'Airbnb' : 
-               booking.source === 'booking.com' ? 'Booking.com' : 'Website',
+        title: displayTitle,
         start: booking.start_date,
-        end: endDate.toISOString().split('T')[0], // Convert back to YYYY-MM-DD format
+        end: endDate.toISOString().split('T')[0],
         backgroundColor: sourceColor,
         borderColor: sourceColor,
-        textColor: '#FFFFFF',
-        display: 'block',
+        textColor: 'white',
+        display: 'background', // ✅ FILLS ENTIRE DAY CELL
+        classNames: ['booking-background'],
         extendedProps: {
-          source: booking.source
+          source: booking.source,
+          originalTitle: displayTitle
         }
       };
     });
@@ -61,7 +82,7 @@ const Calendar: React.FC = () => {
 
   const handleDateSelect = (selectInfo: any) => {
     const start = selectInfo.start;
-    const end = selectInfo.end; // ✅ FIXED: No day subtraction!
+    const end = selectInfo.end;
     
     // Check if any part of the selected range is already booked
     if (isDateRangeBooked(start, end)) {
@@ -110,7 +131,7 @@ const Calendar: React.FC = () => {
         <p className="text-gray-600">Manage your bookings and availability</p>
       </div>
 
-      {/* Simplified Legend with correct colors */}
+      {/* Legend with correct colors */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Booking Sources</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -138,7 +159,7 @@ const Calendar: React.FC = () => {
         </div>
       </div>
 
-      {/* Enhanced Calendar */}
+      {/* Enhanced Calendar with background fills */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <style jsx global>{`
           .fc {
@@ -183,6 +204,7 @@ const Calendar: React.FC = () => {
           .fc-daygrid-day {
             border: 1px solid #f1f5f9 !important;
             transition: background-color 0.2s ease;
+            position: relative;
           }
           
           .fc-daygrid-day:hover {
@@ -191,6 +213,8 @@ const Calendar: React.FC = () => {
           
           .fc-daygrid-day-top {
             padding: 0.5rem;
+            position: relative;
+            z-index: 2;
           }
           
           .fc-day-today {
@@ -206,28 +230,37 @@ const Calendar: React.FC = () => {
             padding: 0.75rem 0;
           }
           
-          .fc-event {
-            border-radius: 0.5rem !important;
+          /* ✅ BACKGROUND EVENTS - FILL ENTIRE CELL */
+          .fc-bg-event {
+            opacity: 0.8 !important;
             border: none !important;
-            margin: 2px !important;
-            padding: 0.25rem 0.5rem !important;
-            font-size: 0.75rem !important;
-            font-weight: 500 !important;
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
-            transition: all 0.2s ease !important;
           }
           
-          .fc-event:hover {
-            transform: translateY(-1px) !important;
-            box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.15) !important;
+          .booking-background {
+            opacity: 0.8 !important;
           }
           
+          /* Make day numbers visible over background */
+          .fc-daygrid-day-number {
+            position: relative !important;
+            z-index: 3 !important;
+            color: #1f2937 !important;
+            font-weight: 600 !important;
+            text-shadow: 0 0 3px rgba(255, 255, 255, 0.8) !important;
+          }
+          
+          /* Source label overlay */
           .fc-event-title {
-            font-weight: 500 !important;
-          }
-          
-          .fc-daygrid-event-harness {
-            margin: 1px 2px;
+            position: absolute !important;
+            bottom: 2px !important;
+            left: 2px !important;
+            right: 2px !important;
+            font-size: 0.7rem !important;
+            font-weight: 600 !important;
+            text-align: center !important;
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+            z-index: 4 !important;
           }
           
           .fc-daygrid-body {
@@ -240,6 +273,12 @@ const Calendar: React.FC = () => {
           
           .fc-daygrid-day-frame {
             min-height: 4rem;
+            position: relative;
+          }
+          
+          /* Ensure today highlight works with background events */
+          .fc-day-today .fc-bg-event {
+            opacity: 0.9 !important;
           }
         `}</style>
         
@@ -254,11 +293,11 @@ const Calendar: React.FC = () => {
           headerToolbar={{
             left: 'prev,next today',
             center: 'title',
-            right: '' // Remove the view selector buttons
+            right: ''
           }}
-          dayMaxEvents={3}
+          dayMaxEvents={false} // ✅ CHANGED: Allow background events to show
           moreLinkClick="popover"
-          eventDisplay="block"
+          eventDisplay="background" // ✅ BACKGROUND FILL
           fixedWeekCount={false}
           showNonCurrentDates={false}
           dayHeaderFormat={{ weekday: 'short' }}
@@ -271,8 +310,12 @@ const Calendar: React.FC = () => {
             prev: 'chevron-left',
             next: 'chevron-right'
           }}
-          selectConstraint={{
-            // This will be handled by our custom logic in handleDateSelect
+          selectConstraint={{}}
+          eventContent={(eventInfo) => {
+            // Custom render to show source name
+            return {
+              html: `<div class="booking-label">${eventInfo.event.title}</div>`
+            };
           }}
         />
       </div>
