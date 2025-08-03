@@ -5,13 +5,29 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { useApp } from '@/context/AppContext';
 import { useBookings, useCreateBooking } from '@/api/dataHooks';
 import BookingModal from '@/components/calendar/BookingModal';
-import { Plus } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const SOURCE_COLORS = {
-  airbnb: '#fd5c63',
-  'booking.com': '#499FDD', 
-  manual: '#38B000',
-  web: '#38B000'
+  airbnb: {
+    background: '#FF5A5F',
+    border: '#E04E52',
+    text: '#FFFFFF'
+  },
+  'booking.com': {
+    background: '#003580',
+    border: '#002752',
+    text: '#FFFFFF'
+  },
+  manual: {
+    background: '#10B981', // Emerald green for organic bookings
+    border: '#059669',
+    text: '#FFFFFF'
+  },
+  web: {
+    background: '#F59E0B', // Amber for web bookings
+    border: '#D97706',
+    text: '#FFFFFF'
+  }
 };
 
 const Calendar: React.FC = () => {
@@ -21,21 +37,32 @@ const Calendar: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDates, setSelectedDates] = useState<{ start: Date; end: Date } | null>(null);
 
-  // Transform bookings into calendar events
+  // Transform bookings into calendar events with enhanced styling
   const events = React.useMemo(() => {
-    return bookings.map(booking => ({
-      id: booking.id,
-      title: '', // Empty title to avoid repetition
-      start: booking.start_date,
-      end: booking.end_date,
-      backgroundColor: SOURCE_COLORS[booking.source as keyof typeof SOURCE_COLORS] || '#6B7280',
-      borderColor: SOURCE_COLORS[booking.source as keyof typeof SOURCE_COLORS] || '#6B7280',
-      textColor: 'transparent', // Hide text
-      display: 'background', // Fill entire day cell
-      extendedProps: {
-        source: booking.source
-      }
-    }));
+    return bookings.map(booking => {
+      const sourceConfig = SOURCE_COLORS[booking.source as keyof typeof SOURCE_COLORS] || {
+        background: '#6B7280',
+        border: '#4B5563',
+        text: '#FFFFFF'
+      };
+
+      return {
+        id: booking.id,
+        title: booking.source === 'airbnb' ? 'Airbnb' : 
+               booking.source === 'booking.com' ? 'Booking.com' : 
+               booking.source === 'manual' ? 'Direct' : 'Website',
+        start: booking.start_date,
+        end: booking.end_date,
+        backgroundColor: sourceConfig.background,
+        borderColor: sourceConfig.border,
+        textColor: sourceConfig.text,
+        display: 'block',
+        classNames: ['booking-event'],
+        extendedProps: {
+          source: booking.source
+        }
+      };
+    });
   }, [bookings]);
 
   // Check if a date range overlaps with existing bookings
@@ -51,7 +78,7 @@ const Calendar: React.FC = () => {
 
   const handleDateSelect = (selectInfo: any) => {
     const start = selectInfo.start;
-    const end = new Date(selectInfo.end.getTime() - 24 * 60 * 60 * 1000); // Adjust end date
+    const end = selectInfo.end; // Use the actual end date without modification
     
     // Check if any part of the selected range is already booked
     if (isDateRangeBooked(start, end)) {
@@ -81,8 +108,8 @@ const Calendar: React.FC = () => {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Plus className="w-8 h-8 text-gray-400" />
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Plus className="w-8 h-8 text-blue-600" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Property</h3>
           <p className="text-gray-500">
@@ -94,32 +121,152 @@ const Calendar: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{currentProperty.name}</h1>
-        <p className="text-gray-600 mt-1">Booking calendar and availability</p>
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">{currentProperty.name}</h1>
+        <p className="text-gray-600">Manage your bookings and availability</p>
       </div>
 
-      {/* Legend */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="flex flex-wrap gap-4">
-          <div className="flex items-center">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: SOURCE_COLORS.airbnb }}></div>
-            <span className="ml-2 text-sm text-gray-700">Airbnb</span>
+      {/* Enhanced Legend */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Booking Sources</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-red-50 to-red-100 border border-red-200">
+            <div 
+              className="w-4 h-4 rounded-full mr-3 shadow-sm" 
+              style={{ backgroundColor: SOURCE_COLORS.airbnb.background }}
+            ></div>
+            <span className="text-sm font-medium text-gray-800">Airbnb</span>
           </div>
-          <div className="flex items-center">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: SOURCE_COLORS['booking.com'] }}></div>
-            <span className="ml-2 text-sm text-gray-700">Booking.com</span>
+          <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200">
+            <div 
+              className="w-4 h-4 rounded-full mr-3 shadow-sm" 
+              style={{ backgroundColor: SOURCE_COLORS['booking.com'].background }}
+            ></div>
+            <span className="text-sm font-medium text-gray-800">Booking.com</span>
           </div>
-          <div className="flex items-center">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: SOURCE_COLORS.manual }}></div>
-            <span className="ml-2 text-sm text-gray-700">Manual</span>
+          <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-emerald-50 to-emerald-100 border border-emerald-200">
+            <div 
+              className="w-4 h-4 rounded-full mr-3 shadow-sm" 
+              style={{ backgroundColor: SOURCE_COLORS.manual.background }}
+            ></div>
+            <span className="text-sm font-medium text-gray-800">Direct Booking</span>
+          </div>
+          <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-amber-50 to-amber-100 border border-amber-200">
+            <div 
+              className="w-4 h-4 rounded-full mr-3 shadow-sm" 
+              style={{ backgroundColor: SOURCE_COLORS.web.background }}
+            ></div>
+            <span className="text-sm font-medium text-gray-800">Website</span>
           </div>
         </div>
       </div>
 
-      {/* Calendar */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+      {/* Enhanced Calendar */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <style jsx global>{`
+          .fc {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+          }
+          
+          .fc-header-toolbar {
+            padding: 1.5rem 1.5rem 1rem 1.5rem;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-bottom: 1px solid #e2e8f0;
+          }
+          
+          .fc-toolbar-title {
+            font-size: 1.5rem !important;
+            font-weight: 700 !important;
+            color: #1e293b;
+          }
+          
+          .fc-button {
+            border: none !important;
+            background: #3b82f6 !important;
+            color: white !important;
+            border-radius: 0.75rem !important;
+            padding: 0.5rem 1rem !important;
+            font-weight: 500 !important;
+            transition: all 0.2s ease !important;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+          }
+          
+          .fc-button:hover {
+            background: #2563eb !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px 0 rgba(59, 130, 246, 0.4) !important;
+          }
+          
+          .fc-button:disabled {
+            background: #94a3b8 !important;
+            transform: none !important;
+            box-shadow: none !important;
+          }
+          
+          .fc-daygrid-day {
+            border: 1px solid #f1f5f9 !important;
+            transition: background-color 0.2s ease;
+          }
+          
+          .fc-daygrid-day:hover {
+            background-color: #f8fafc !important;
+          }
+          
+          .fc-daygrid-day-top {
+            padding: 0.5rem;
+          }
+          
+          .fc-day-today {
+            background-color: #dbeafe !important;
+            border-color: #3b82f6 !important;
+          }
+          
+          .fc-col-header-cell {
+            background: #f8fafc;
+            border-color: #e2e8f0 !important;
+            font-weight: 600;
+            color: #475569;
+            padding: 0.75rem 0;
+          }
+          
+          .booking-event {
+            border-radius: 0.5rem !important;
+            border: none !important;
+            margin: 2px !important;
+            padding: 0.25rem 0.5rem !important;
+            font-size: 0.75rem !important;
+            font-weight: 500 !important;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+            transition: all 0.2s ease !important;
+          }
+          
+          .booking-event:hover {
+            transform: translateY(-1px) !important;
+            box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.15) !important;
+          }
+          
+          .fc-event-title {
+            font-weight: 500 !important;
+          }
+          
+          .fc-daygrid-event-harness {
+            margin: 1px 2px;
+          }
+          
+          .fc-daygrid-body {
+            border-color: #f1f5f9 !important;
+          }
+          
+          .fc-scrollgrid {
+            border-color: #e2e8f0 !important;
+          }
+          
+          .fc-daygrid-day-frame {
+            min-height: 4rem;
+          }
+        `}</style>
+        
         <FullCalendar
           plugins={[dayGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
@@ -131,13 +278,23 @@ const Calendar: React.FC = () => {
           headerToolbar={{
             left: 'prev,next today',
             center: 'title',
-            right: 'dayGridMonth'
+            right: '' // Remove the view selector buttons
           }}
-          dayMaxEvents={false}
+          dayMaxEvents={3}
           moreLinkClick="popover"
-          eventDisplay="background"
-          dayCellClassNames="border border-gray-200"
-          dayHeaderClassNames="bg-gray-50 text-gray-700 font-medium py-2"
+          eventDisplay="block"
+          fixedWeekCount={false}
+          showNonCurrentDates={false}
+          dayHeaderFormat={{ weekday: 'short' }}
+          buttonText={{
+            today: 'Today',
+            prev: '',
+            next: ''
+          }}
+          buttonIcons={{
+            prev: 'chevron-left',
+            next: 'chevron-right'
+          }}
           selectConstraint={{
             // This will be handled by our custom logic in handleDateSelect
           }}
