@@ -14,66 +14,33 @@ const Calendar: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDates, setSelectedDates] = useState<{ start: Date; end: Date } | null>(null);
 
-  // SUPER DEFENSIVE COLOR AND TITLE MAPPING
   const getBookingDetails = (source: any) => {
-    console.log('=== DEBUGGING BOOKING SOURCE ===');
-    console.log('Raw source value:', source);
-    console.log('Source type:', typeof source);
-    console.log('Source length:', source?.length);
-    console.log('Source JSON:', JSON.stringify(source));
-    
-    // Clean the source string
     const cleanSource = String(source || '').toLowerCase().trim();
-    console.log('Cleaned source:', cleanSource);
     
-    // Try multiple variations
-    if (cleanSource === 'airbnb' || cleanSource === 'Airbnb' || cleanSource === 'AIRBNB') {
-      console.log('✅ MATCHED AIRBNB - returning red');
+    if (cleanSource === 'airbnb') {
       return { color: '#FF5A5F', title: 'Airbnb' };
     }
     
-    if (cleanSource === 'booking.com' || cleanSource === 'Booking.com' || cleanSource === 'BOOKING.COM') {
-      console.log('✅ MATCHED BOOKING.COM - returning blue');
+    if (cleanSource === 'booking.com') {
       return { color: '#003580', title: 'Booking.com' };
     }
     
-    if (cleanSource === 'manual' || cleanSource === 'Manual' || cleanSource === 'MANUAL' || 
-        cleanSource === 'web' || cleanSource === 'Web' || cleanSource === 'WEB' ||
-        cleanSource === 'website' || cleanSource === 'Website') {
-      console.log('✅ MATCHED MANUAL/WEB - returning yellow');
+    if (cleanSource === 'manual' || cleanSource === 'web' || cleanSource === 'website') {
       return { color: '#F59E0B', title: 'Website' };
     }
     
-    console.log('❌ NO MATCH FOUND - returning gray');
-    console.log('Available options to match: airbnb, booking.com, manual, web');
-    return { color: '#6B7280', title: `Unknown (${cleanSource})` };
+    return { color: '#6B7280', title: `${cleanSource || 'Unknown'}` };
   };
 
   const events = React.useMemo(() => {
-    console.log('=== PROCESSING ALL BOOKINGS ===');
-    console.log('Total bookings:', bookings.length);
-    
-    // First, let's see ALL the raw data
-    bookings.forEach((booking, index) => {
-      console.log(`Booking ${index + 1}:`, {
-        id: booking.id,
-        source: booking.source,
-        start_date: booking.start_date,
-        end_date: booking.end_date,
-        all_fields: booking
-      });
-    });
-    
-    return bookings.map((booking, index) => {
-      console.log(`\n--- Processing booking ${index + 1} (${booking.id}) ---`);
-      
+    return bookings.map((booking) => {
       const details = getBookingDetails(booking.source);
       
       // Add one day to end for FullCalendar
       const endDate = new Date(booking.end_date);
       endDate.setDate(endDate.getDate() + 1);
       
-      const event = {
+      return {
         id: booking.id,
         title: details.title,
         start: booking.start_date,
@@ -83,16 +50,9 @@ const Calendar: React.FC = () => {
         textColor: '#FFFFFF',
         display: 'background',
         extendedProps: {
-          source: booking.source,
-          originalSource: booking.source
+          source: booking.source
         }
       };
-      
-      console.log('Created event:', event);
-      console.log('Applied color:', details.color);
-      console.log('Applied title:', details.title);
-      
-      return event;
     });
   }, [bookings]);
 
@@ -123,9 +83,9 @@ const Calendar: React.FC = () => {
   }) => {
     if (!currentProperty) return;
     
+    // FIXED: Remove user_id since it's causing UUID error
     await createBooking.mutateAsync({
       property_id: currentProperty.id,
-      user_id: 'temp-user-id',
       start_date: bookingData.start_date,
       end_date: bookingData.end_date,
       source: 'manual'
@@ -155,35 +115,21 @@ const Calendar: React.FC = () => {
         <p className="text-gray-600">Manage your bookings and availability</p>
       </div>
 
-      {/* Debug info */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-        <h4 className="font-semibold text-yellow-800 mb-2">Debug Info (Check Console for Details)</h4>
-        <p className="text-sm text-yellow-700">
-          Total bookings: {bookings.length} | 
-          Open browser console (F12) to see detailed source analysis
-        </p>
-        {bookings.length > 0 && (
-          <div className="mt-2 text-xs text-yellow-600">
-            Raw sources: {bookings.map(b => `"${b.source}"`).join(', ')}
-          </div>
-        )}
-      </div>
-
       {/* Legend */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Booking Sources</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-red-50 to-red-100 border border-red-200">
             <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: '#FF5A5F' }}></div>
-            <span className="text-sm font-medium text-gray-800">Airbnb (#FF5A5F)</span>
+            <span className="text-sm font-medium text-gray-800">Airbnb</span>
           </div>
           <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200">
             <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: '#003580' }}></div>
-            <span className="text-sm font-medium text-gray-800">Booking.com (#003580)</span>
+            <span className="text-sm font-medium text-gray-800">Booking.com</span>
           </div>
           <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-amber-50 to-amber-100 border border-amber-200">
             <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: '#F59E0B' }}></div>
-            <span className="text-sm font-medium text-gray-800">Website (#F59E0B)</span>
+            <span className="text-sm font-medium text-gray-800">Website</span>
           </div>
         </div>
       </div>
