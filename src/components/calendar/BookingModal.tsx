@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, MapPin, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, Calendar, AlertCircle, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface BookingModalProps {
@@ -24,7 +24,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
 }) => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [source, setSource] = useState<'airbnb' | 'booking.com' | 'manual' | 'web'>('manual');
+  const [source, setSource] = useState<'airbnb' | 'booking.com' | 'manual' | 'web'>('manual'); // Always manual
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -37,28 +37,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
       setEndDate(format(initialEndDate, 'yyyy-MM-dd'));
     }
   }, [initialStartDate, initialEndDate]);
-
-  // SIMPLIFIED: Only 3 booking sources - removed "direct booking"
-  const sourceOptions = [
-    { 
-      value: 'manual' as const, 
-      label: 'Website Booking', 
-      color: 'bg-amber-500',
-      description: 'Manual booking or website booking'
-    },
-    { 
-      value: 'airbnb' as const, 
-      label: 'Airbnb', 
-      color: 'bg-red-500',
-      description: 'Booking from Airbnb platform'
-    },
-    { 
-      value: 'booking.com' as const, 
-      label: 'Booking.com', 
-      color: 'bg-blue-600',
-      description: 'Booking from Booking.com platform'
-    }
-  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,7 +58,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       await onSubmit({
         start_date: startDate,
         end_date: endDate,
-        source,
+        source, // Always 'manual'
       });
       
       setSuccess(true);
@@ -104,7 +82,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const resetForm = () => {
     setStartDate('');
     setEndDate('');
-    setSource('manual');
+    // source stays as 'manual' - no need to reset
     setError(null);
     setSuccess(false);
   };
@@ -220,42 +198,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
                             required
                           />
                         </div>
-                      </div>
-                    </div>
-                    
-                    {/* Source Selection - SIMPLIFIED */}
-                    <div className="space-y-4">
-                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-blue-600" />
-                        Booking Source
-                      </h3>
-                      
-                      <div className="grid grid-cols-1 gap-3">
-                        {sourceOptions.map((option) => (
-                          <label
-                            key={option.value}
-                            className={`relative flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
-                              source === option.value
-                                ? 'border-blue-500 bg-blue-50'
-                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                            }`}
-                          >
-                            <input
-                              type="radio"
-                              value={option.value}
-                              checked={source === option.value}
-                              onChange={(e) => setSource(e.target.value as typeof source)}
-                              className="sr-only"
-                            />
-                            <div className="flex items-center gap-3 flex-1">
-                              <div className={`w-4 h-4 rounded-full ${option.color}`}></div>
-                              <div className="flex-1">
-                                <span className="font-medium text-gray-900 block">{option.label}</span>
-                                <span className="text-sm text-gray-600">{option.description}</span>
-                              </div>
-                            </div>
-                          </label>
-                        ))}
                       </div>
                     </div>
                     
