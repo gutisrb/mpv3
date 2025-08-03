@@ -28,7 +28,17 @@ const Calendar: React.FC = () => {
       // Debug: Log the actual booking source
       console.log('Booking source from database:', booking.source, 'for booking:', booking.id);
       
-      const sourceColor = SOURCE_COLORS[booking.source as keyof typeof SOURCE_COLORS] || '#6B7280';
+      // ✅ FIXED: More robust color mapping
+      let sourceColor = '#6B7280'; // Default gray
+      if (booking.source === 'airbnb') {
+        sourceColor = SOURCE_COLORS.airbnb;
+      } else if (booking.source === 'booking.com') {
+        sourceColor = SOURCE_COLORS['booking.com'];
+      } else if (booking.source === 'manual' || booking.source === 'web') {
+        sourceColor = SOURCE_COLORS.manual;
+      }
+      
+      console.log('Applied color:', sourceColor, 'for source:', booking.source);
       
       // Add one day to end date because FullCalendar treats end as exclusive
       const endDate = new Date(booking.end_date);
@@ -101,10 +111,13 @@ const Calendar: React.FC = () => {
   }) => {
     if (!currentProperty) return;
     
+    // Always use 'manual' for manually created bookings
     await createBooking.mutateAsync({
       property_id: currentProperty.id,
       user_id: 'temp-user-id', // This should come from auth
-      ...bookingData,
+      start_date: bookingData.start_date,
+      end_date: bookingData.end_date,
+      source: 'manual' // Always manual for user-created bookings
     });
   };
 
