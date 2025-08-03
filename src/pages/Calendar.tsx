@@ -6,6 +6,7 @@ import { useApp } from '@/context/AppContext';
 import { useBookings, useCreateBooking } from '@/api/dataHooks';
 import BookingModal from '@/components/calendar/BookingModal';
 import { Plus } from 'lucide-react';
+import { supabase } from '@/api/supabaseClient';
 
 const Calendar: React.FC = () => {
   const { currentProperty } = useApp();
@@ -83,9 +84,16 @@ const Calendar: React.FC = () => {
   }) => {
     if (!currentProperty) return;
     
-    // FIXED: Remove user_id since it's causing UUID error
+    // Get the current authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
     await createBooking.mutateAsync({
       property_id: currentProperty.id,
+      user_id: user.id, // Add the authenticated user ID
       start_date: bookingData.start_date,
       end_date: bookingData.end_date,
       source: 'manual'
