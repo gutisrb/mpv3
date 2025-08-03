@@ -5,29 +5,14 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { useApp } from '@/context/AppContext';
 import { useBookings, useCreateBooking } from '@/api/dataHooks';
 import BookingModal from '@/components/calendar/BookingModal';
-import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
+// CORRECTED: Simplified booking sources with correct colors
 const SOURCE_COLORS = {
-  airbnb: {
-    background: '#FF5A5F',
-    border: '#E04E52',
-    text: '#FFFFFF'
-  },
-  'booking.com': {
-    background: '#003580',
-    border: '#002752',
-    text: '#FFFFFF'
-  },
-  manual: {
-    background: '#10B981', // Emerald green for organic bookings
-    border: '#059669',
-    text: '#FFFFFF'
-  },
-  web: {
-    background: '#F59E0B', // Amber for web bookings
-    border: '#D97706',
-    text: '#FFFFFF'
-  }
+  airbnb: '#FF5A5F',      // Airbnb red
+  'booking.com': '#003580', // Booking.com blue  
+  manual: '#F59E0B',      // Yellow for manual bookings
+  web: '#F59E0B'          // Yellow for web bookings (same as manual)
 };
 
 const Calendar: React.FC = () => {
@@ -37,27 +22,21 @@ const Calendar: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDates, setSelectedDates] = useState<{ start: Date; end: Date } | null>(null);
 
-  // Transform bookings into calendar events with enhanced styling
+  // Transform bookings into calendar events with correct colors
   const events = React.useMemo(() => {
     return bookings.map(booking => {
-      const sourceConfig = SOURCE_COLORS[booking.source as keyof typeof SOURCE_COLORS] || {
-        background: '#6B7280',
-        border: '#4B5563',
-        text: '#FFFFFF'
-      };
-
+      const sourceColor = SOURCE_COLORS[booking.source as keyof typeof SOURCE_COLORS] || '#6B7280';
+      
       return {
         id: booking.id,
         title: booking.source === 'airbnb' ? 'Airbnb' : 
-               booking.source === 'booking.com' ? 'Booking.com' : 
-               booking.source === 'manual' ? 'Direct' : 'Website',
-        start: booking.start_date,
-        end: booking.end_date,
-        backgroundColor: sourceConfig.background,
-        borderColor: sourceConfig.border,
-        textColor: sourceConfig.text,
+               booking.source === 'booking.com' ? 'Booking.com' : 'Website',
+        start: booking.start_date, // ✅ NO DATE MODIFICATION
+        end: booking.end_date,     // ✅ NO DATE MODIFICATION  
+        backgroundColor: sourceColor,
+        borderColor: sourceColor,
+        textColor: '#FFFFFF',
         display: 'block',
-        classNames: ['booking-event'],
         extendedProps: {
           source: booking.source
         }
@@ -78,7 +57,7 @@ const Calendar: React.FC = () => {
 
   const handleDateSelect = (selectInfo: any) => {
     const start = selectInfo.start;
-    const end = selectInfo.end; // Use the actual end date without modification
+    const end = selectInfo.end; // ✅ FIXED: No day subtraction!
     
     // Check if any part of the selected range is already booked
     if (isDateRangeBooked(start, end)) {
@@ -127,35 +106,28 @@ const Calendar: React.FC = () => {
         <p className="text-gray-600">Manage your bookings and availability</p>
       </div>
 
-      {/* Enhanced Legend */}
+      {/* Simplified Legend with correct colors */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Booking Sources</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-red-50 to-red-100 border border-red-200">
             <div 
               className="w-4 h-4 rounded-full mr-3 shadow-sm" 
-              style={{ backgroundColor: SOURCE_COLORS.airbnb.background }}
+              style={{ backgroundColor: SOURCE_COLORS.airbnb }}
             ></div>
             <span className="text-sm font-medium text-gray-800">Airbnb</span>
           </div>
           <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200">
             <div 
               className="w-4 h-4 rounded-full mr-3 shadow-sm" 
-              style={{ backgroundColor: SOURCE_COLORS['booking.com'].background }}
+              style={{ backgroundColor: SOURCE_COLORS['booking.com'] }}
             ></div>
             <span className="text-sm font-medium text-gray-800">Booking.com</span>
-          </div>
-          <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-emerald-50 to-emerald-100 border border-emerald-200">
-            <div 
-              className="w-4 h-4 rounded-full mr-3 shadow-sm" 
-              style={{ backgroundColor: SOURCE_COLORS.manual.background }}
-            ></div>
-            <span className="text-sm font-medium text-gray-800">Direct Booking</span>
           </div>
           <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-amber-50 to-amber-100 border border-amber-200">
             <div 
               className="w-4 h-4 rounded-full mr-3 shadow-sm" 
-              style={{ backgroundColor: SOURCE_COLORS.web.background }}
+              style={{ backgroundColor: SOURCE_COLORS.manual }}
             ></div>
             <span className="text-sm font-medium text-gray-800">Website</span>
           </div>
@@ -230,7 +202,7 @@ const Calendar: React.FC = () => {
             padding: 0.75rem 0;
           }
           
-          .booking-event {
+          .fc-event {
             border-radius: 0.5rem !important;
             border: none !important;
             margin: 2px !important;
@@ -241,7 +213,7 @@ const Calendar: React.FC = () => {
             transition: all 0.2s ease !important;
           }
           
-          .booking-event:hover {
+          .fc-event:hover {
             transform: translateY(-1px) !important;
             box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.15) !important;
           }
