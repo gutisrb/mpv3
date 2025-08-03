@@ -27,12 +27,16 @@ const Calendar: React.FC = () => {
     return bookings.map(booking => {
       const sourceColor = SOURCE_COLORS[booking.source as keyof typeof SOURCE_COLORS] || '#6B7280';
       
+      // ✅ FIXED: Add one day to end date because FullCalendar treats end as exclusive
+      const endDate = new Date(booking.end_date);
+      endDate.setDate(endDate.getDate() + 1);
+      
       return {
         id: booking.id,
         title: booking.source === 'airbnb' ? 'Airbnb' : 
                booking.source === 'booking.com' ? 'Booking.com' : 'Website',
-        start: booking.start_date, // ✅ NO DATE MODIFICATION
-        end: booking.end_date,     // ✅ NO DATE MODIFICATION  
+        start: booking.start_date,
+        end: endDate.toISOString().split('T')[0], // Convert back to YYYY-MM-DD format
         backgroundColor: sourceColor,
         borderColor: sourceColor,
         textColor: '#FFFFFF',
