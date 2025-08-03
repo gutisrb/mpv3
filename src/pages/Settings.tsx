@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useProperties, useUpdateProperty } from '@/api/dataHooks';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Building2, Copy, Check, Edit3, Save, X, Link, ExternalLink, Zap, Shield, Globe } from 'lucide-react';
+import { Building2, Copy, Check, Edit3, Save, X, Link, ExternalLink, Shield, Globe } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const { data: properties = [], isLoading } = useProperties();
@@ -94,39 +94,7 @@ const Settings: React.FC = () => {
         <p className="text-gray-600 text-lg">Manage your property integrations and OTA connections</p>
       </div>
 
-      {/* Integration Guide */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-8 mb-8 border border-blue-200">
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Zap className="w-6 h-6 text-white" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-xl font-semibold text-blue-900 mb-3">Quick Setup Guide</h3>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
-                  <p className="text-blue-800"><strong>Copy Channel Feed URL</strong> for each property</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
-                  <p className="text-blue-800"><strong>Paste into OTAs:</strong> Airbnb Calendar → Sync → Import</p>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
-                  <p className="text-blue-800"><strong>Add Export URLs:</strong> Booking.com Calendar → Sync → Import</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">4</div>
-                  <p className="text-blue-800"><strong>Sync Complete:</strong> Real-time two-way synchronization</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+
 
       {/* Properties Integration Settings */}
       <div className="space-y-6">
