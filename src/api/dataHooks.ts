@@ -15,11 +15,14 @@ export interface Property {
 export interface Booking {
   id: string;
   property_id: string;
+  user_id: string; // ADDED: This was missing!
   start_date: string;
   end_date: string;
   source: 'airbnb' | 'booking.com' | 'manual' | 'web';
   created_at: string;
   property_name?: string;
+  channel?: string | null;
+  external_uid?: string | null;
 }
 
 // Fetch properties for the current user
