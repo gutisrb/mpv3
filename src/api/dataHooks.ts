@@ -15,12 +15,14 @@ export interface Property {
 export interface Booking {
   id: string;
   property_id: string;
+  user_id: string; // ADDED: This was missing!
   start_date: string;
   end_date: string;
   source: 'airbnb' | 'booking.com' | 'manual' | 'web';
-  user_id: string; // Add this required field
   created_at: string;
   property_name?: string;
+  channel?: string | null;
+  external_uid?: string | null;
 }
 
 // Fetch properties for the current user
@@ -196,20 +198,33 @@ export const useNightsBooked = (propertyId?: string) => {
 };
 
 // Create a new booking
+// Create a new booking
 export const useCreateBooking = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (booking: Omit<Booking, 'id' | 'created_at'>) => {
+    mutationFn: async (booking: Omit<Booking, 'id' | 'created_at' | 'user_id'>) => {
+      // Get the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+      
       const { data, error } = await supabase
         .from('bookings')
-        .insert([booking])
+        .insert([{
+          ...booking,
+          user_id: user.id // Add the authenticated user's ID
+        }])
         .select()
         .single();
         
       if (error) {
         throw new Error(error.message);
       }
+      
+      // Rest of your code remains the same...
       
       // Get property name
       const { data: property } = await supabase
