@@ -1,272 +1,376 @@
 import React, { useState } from 'react';
-import { Plus, Building2, MapPin, Wifi, WifiOff, Trash2 } from 'lucide-react';
+import { useProperties, useUpdateProperty } from '@/api/dataHooks';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useProperties, useCreateProperty } from '@/api/dataHooks';
+import { Building2, Copy, Check, Edit3, Save, X, Link, ExternalLink, Zap, Shield, Globe } from 'lucide-react';
 
-const AddPropertyModal: React.FC<{
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-}> = ({ isOpen, onClose, onSuccess }) => {
-  const [name, setName] = useState('');
-  const [location, setLocation] = useState('');
-  const [airbnbIcal, setAirbnbIcal] = useState('');
-  const [bookingIcal, setBookingIcal] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const createProperty = useCreateProperty();
+const Settings: React.FC = () => {
+  const { data: properties = [], isLoading } = useProperties();
+  const updateProperty = useUpdateProperty();
+  const [editingProperty, setEditingProperty] = useState<string | null>(null);
+  const [tempUrls, setTempUrls] = useState<{ [key: string]: { airbnb: string; booking: string } }>({});
+  const [copiedLinks, setCopiedLinks] = useState<{ [key: string]: boolean }>({});
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
+  // Generate channel manager webhook URL for each property
+  const generateChannelManagerUrl = (propertyId: string) => {
+    const baseUrl = import.meta.env.VITE_ICS_WEBHOOK_BASE || 'https://hook.eu2.make.com/1p4gelkvs573a5au5sngbc2jtlvmou9d';
+    return `${baseUrl}?property_id=${propertyId}`;
+  };
 
-    setIsSubmitting(true);
+  const handleCopyChannelManagerLink = async (propertyId: string) => {
+    const url = generateChannelManagerUrl(propertyId);
+    await navigator.clipboard.writeText(url);
+    setCopiedLinks(prev => ({ ...prev, [propertyId]: true }));
+    setTimeout(() => {
+      setCopiedLinks(prev => ({ ...prev, [propertyId]: false }));
+    }, 2000);
+  };
+
+  const handleEditProperty = (property: any) => {
+    setEditingProperty(property.id);
+    setTempUrls(prev => ({
+      ...prev,
+      [property.id]: {
+        airbnb: property.airbnb_ical || '',
+        booking: property.booking_ical || ''
+      }
+    }));
+  };
+
+  const handleSaveProperty = async (propertyId: string) => {
+    const urls = tempUrls[propertyId];
+    if (!urls) return;
+
     try {
-      await createProperty.mutateAsync({
-        name: name.trim(),
-        location: location.trim() || 'Default Location',
-        airbnb_ical: airbnbIcal.trim() || undefined,
-        booking_ical: bookingIcal.trim() || undefined,
+      await updateProperty.mutateAsync({
+        id: propertyId,
+        airbnb_ical: urls.airbnb || null,
+        booking_ical: urls.booking || null
       });
-      
-      // Reset form
-      setName('');
-      setLocation('');
-      setAirbnbIcal('');
-      setBookingIcal('');
-      onSuccess();
-      onClose();
+      setEditingProperty(null);
+      setTempUrls(prev => {
+        const updated = { ...prev };
+        delete updated[propertyId];
+        return updated;
+      });
     } catch (error) {
-      console.error('Failed to create property:', error);
-    } finally {
-      setIsSubmitting(false);
+      console.error('Failed to update property:', error);
     }
   };
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            className="fixed inset-0 bg-black bg-opacity-50 z-40"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-          
-          <motion.div
-            className="fixed inset-0 flex items-center justify-center z-50 px-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="bg-white rounded-xl shadow-xl w-full max-w-md"
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.9 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Add New Property</h2>
-                
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Property Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter property name"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Location
-                    </label>
-                    <input
-                      type="text"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter location (optional)"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Airbnb iCal URL
-                    </label>
-                    <input
-                      type="url"
-                      value={airbnbIcal}
-                      onChange={(e) => setAirbnbIcal(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="https://www.airbnb.com/calendar/ical/..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Booking.com iCal URL
-                    </label>
-                    <input
-                      type="url"
-                      value={bookingIcal}
-                      onChange={(e) => setBookingIcal(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="https://admin.booking.com/calendar.ical?..."
-                    />
-                  </div>
-
-                  <div className="flex justify-end space-x-3 pt-4">
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                    >
-                      {isSubmitting ? 'Adding...' : 'Add Property'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </motion.div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  );
-};
-
-const Settings: React.FC = () => {
-  const { data: properties = [], isLoading, refetch } = useProperties();
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-
-  const handleAddSuccess = () => {
-    refetch(); // Refresh the properties list
+  const handleCancelEdit = (propertyId: string) => {
+    setEditingProperty(null);
+    setTempUrls(prev => {
+      const updated = { ...prev };
+      delete updated[propertyId];
+      return updated;
+    });
   };
 
+  const updateTempUrl = (propertyId: string, type: 'airbnb' | 'booking', value: string) => {
+    setTempUrls(prev => ({
+      ...prev,
+      [propertyId]: {
+        ...prev[propertyId],
+        [type]: value
+      }
+    }));
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-blue-600"></div>
+          <p className="mt-4 text-gray-600 text-lg">Loading channel manager settings...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600 mt-1">Manage your properties and integrations</p>
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Channel Manager</h1>
+        <p className="text-gray-600 text-lg">Manage your property integrations and OTA connections</p>
       </div>
 
-      {/* Properties Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Properties</h2>
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Property
-            </button>
+      {/* Integration Guide */}
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-8 mb-8 border border-blue-200">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Zap className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-xl font-semibold text-blue-900 mb-3">Quick Setup Guide</h3>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
+                  <p className="text-blue-800"><strong>Copy Channel Feed URL</strong> for each property</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
+                  <p className="text-blue-800"><strong>Paste into OTAs:</strong> Airbnb Calendar → Sync → Import</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
+                  <p className="text-blue-800"><strong>Add Export URLs:</strong> Booking.com Calendar → Sync → Import</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">4</div>
+                  <p className="text-blue-800"><strong>Sync Complete:</strong> Real-time two-way synchronization</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+      </div>
 
-        <div className="p-6">
-          {isLoading ? (
-            <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-blue-600"></div>
-              <p className="mt-4 text-gray-600">Loading properties...</p>
-            </div>
-          ) : properties.length > 0 ? (
-            <div className="space-y-4">
-              {properties.map((property) => (
-                <div key={property.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <Building2 className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div className="ml-3">
-                        <h3 className="font-medium text-gray-900">{property.name}</h3>
-                        <div className="flex items-center text-gray-500 mt-1">
-                          <MapPin className="w-4 h-4 mr-1" />
-                          <span className="text-sm">{property.location}</span>
-                        </div>
-                      </div>
+      {/* Properties Integration Settings */}
+      <div className="space-y-6">
+        {properties.length > 0 ? (
+          properties.map((property, index) => (
+            <motion.div
+              key={property.id}
+              className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.1 }}
+            >
+              {/* Property Header */}
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-8 py-6 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                      <Building2 className="w-7 h-7 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-900">{property.name}</h3>
+                      <p className="text-gray-600 flex items-center gap-2">
+                        <Globe className="w-4 h-4" />
+                        {property.location}
+                      </p>
                     </div>
                   </div>
+                  
+                  {editingProperty === property.id ? (
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleSaveProperty(property.id)}
+                        disabled={updateProperty.isPending}
+                        className="flex items-center px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 disabled:opacity-50 shadow-lg hover:shadow-xl"
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        {updateProperty.isPending ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        onClick={() => handleCancelEdit(property.id)}
+                        className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleEditProperty(property)}
+                      className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                    >
+                      <Edit3 className="w-4 h-4 mr-2" />
+                      Edit Connections
+                    </button>
+                  )}
+                </div>
+              </div>
 
-                  {/* Connection Status */}
-                  <div className="mt-4 grid grid-cols-2 gap-4">
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm text-gray-600">Airbnb</span>
-                      <div className="flex items-center">
-                        {property.airbnb_ical ? (
-                          <>
-                            <Wifi className="w-4 h-4 text-green-500 mr-1" />
-                            <span className="text-sm text-green-600 font-medium">Connected</span>
-                          </>
-                        ) : (
-                          <>
-                            <WifiOff className="w-4 h-4 text-gray-400 mr-1" />
-                            <span className="text-sm text-gray-400">Not Connected</span>
-                          </>
-                        )}
+              <div className="p-8">
+                {/* Channel Manager Feed URL */}
+                <div className="mb-8">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
+                      <Link className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900">Channel Manager Feed URL</h4>
+                      <p className="text-sm text-gray-600">Paste this URL into your OTA platforms</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={generateChannelManagerUrl(property.id)}
+                        readOnly
+                        className="w-full p-4 bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-300 rounded-xl text-gray-700 font-mono text-sm pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <Shield className="w-4 h-4 text-green-500" />
                       </div>
                     </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm text-gray-600">Booking.com</span>
-                      <div className="flex items-center">
-                        {property.booking_ical ? (
-                          <>
-                            <Wifi className="w-4 h-4 text-green-500 mr-1" />
-                            <span className="text-sm text-green-600 font-medium">Connected</span>
-                          </>
-                        ) : (
-                          <>
-                            <WifiOff className="w-4 h-4 text-gray-400 mr-1" />
-                            <span className="text-sm text-gray-400">Not Connected</span>
-                          </>
+                    <button
+                      onClick={() => handleCopyChannelManagerLink(property.id)}
+                      className="p-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                      title="Copy channel manager feed URL"
+                    >
+                      {copiedLinks[property.id] ? 
+                        <Check className="w-5 h-5" /> : 
+                        <Copy className="w-5 h-5" />
+                      }
+                    </button>
+                  </div>
+                </div>
+
+                {/* OTA Connection URLs */}
+                <div className="grid md:grid-cols-2 gap-8">
+                  {/* Airbnb */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">A</span>
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-semibold text-gray-900">Airbnb Integration</h4>
+                        <p className="text-sm text-gray-600">Export calendar from Airbnb</p>
+                      </div>
+                    </div>
+                    
+                    {editingProperty === property.id ? (
+                      <div className="space-y-2">
+                        <input
+                          type="url"
+                          value={tempUrls[property.id]?.airbnb || ''}
+                          onChange={(e) => updateTempUrl(property.id, 'airbnb', e.target.value)}
+                          className="w-full p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200"
+                          placeholder="https://www.airbnb.com/calendar/ical/..."
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            value={property.airbnb_ical || 'Not connected'}
+                            readOnly
+                            className={`w-full p-4 rounded-xl border text-sm transition-all duration-200 ${
+                              property.airbnb_ical 
+                                ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 text-green-800' 
+                                : 'bg-gray-50 border-gray-300 text-gray-500'
+                            }`}
+                          />
+                        </div>
+                        {property.airbnb_ical && (
+                          <a
+                            href={property.airbnb_ical}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-4 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                            title="Open Airbnb calendar URL"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
                         )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Booking.com */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">B</span>
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-semibold text-gray-900">Booking.com Integration</h4>
+                        <p className="text-sm text-gray-600">Export calendar from Booking.com</p>
+                      </div>
+                    </div>
+                    
+                    {editingProperty === property.id ? (
+                      <div className="space-y-2">
+                        <input
+                          type="url"
+                          value={tempUrls[property.id]?.booking || ''}
+                          onChange={(e) => updateTempUrl(property.id, 'booking', e.target.value)}
+                          className="w-full p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                          placeholder="https://admin.booking.com/calendar.ical?..."
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            value={property.booking_ical || 'Not connected'}
+                            readOnly
+                            className={`w-full p-4 rounded-xl border text-sm transition-all duration-200 ${
+                              property.booking_ical 
+                                ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 text-green-800' 
+                                : 'bg-gray-50 border-gray-300 text-gray-500'
+                            }`}
+                          />
+                        </div>
+                        {property.booking_ical && (
+                          <a
+                            href={property.booking_ical}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                            title="Open Booking.com calendar URL"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Connection Status Dashboard */}
+                <div className="mt-8 p-6 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-green-600" />
+                    Connection Status
+                  </h4>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm">
+                      <span className="text-gray-700 font-medium">Airbnb</span>
+                      <div className={`px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 ${
+                        property.airbnb_ical 
+                          ? 'bg-green-100 text-green-800 shadow-sm' 
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {property.airbnb_ical ? '🟢 Connected' : '🔴 Not Connected'}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm">
+                      <span className="text-gray-700 font-medium">Booking.com</span>
+                      <div className={`px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 ${
+                        property.booking_ical 
+                          ? 'bg-green-100 text-green-800 shadow-sm' 
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {property.booking_ical ? '🟢 Connected' : '🔴 Not Connected'}
                       </div>
                     </div>
                   </div>
                 </div>
-              ))}
+              </div>
+            </motion.div>
+          ))
+        ) : (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center">
+            <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Building2 className="w-10 h-10 text-gray-400" />
             </div>
-          ) : (
-            <div className="text-center py-8">
-              <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No properties yet</h3>
-              <p className="text-gray-500 mb-4">
-                Get started by adding your first property to manage.
-              </p>
-              <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Your First Property
-              </button>
-            </div>
-          )}
-        </div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-3">No Properties Found</h3>
+            <p className="text-gray-600 max-w-md mx-auto">
+              Add properties from the Dashboard to start managing their channel integrations and OTA connections.
+            </p>
+          </div>
+        )}
       </div>
-
-      <AddPropertyModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSuccess={handleAddSuccess}
-      />
     </div>
   );
 };
