@@ -24,7 +24,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
 }) => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [source, setSource] = useState<'airbnb' | 'booking.com' | 'manual' | 'web'>('manual'); // Always manual
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -55,10 +54,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
     setIsSubmitting(true);
     
     try {
+      // Always submit as 'manual' - no user choice
       await onSubmit({
         start_date: startDate,
         end_date: endDate,
-        source, // Always 'manual'
+        source: 'manual'
       });
       
       setSuccess(true);
@@ -82,7 +82,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const resetForm = () => {
     setStartDate('');
     setEndDate('');
-    // source stays as 'manual' - no need to reset
     setError(null);
     setSuccess(false);
   };
@@ -118,7 +117,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
               transition={{ type: "spring", duration: 0.3 }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
               <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
@@ -136,7 +134,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 </div>
               </div>
 
-              {/* Content */}
               <div className="p-6">
                 {success ? (
                   <motion.div 
@@ -163,7 +160,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
                       </motion.div>
                     )}
                     
-                    {/* Date Selection */}
                     <div className="space-y-4">
                       <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-blue-600" />
@@ -201,7 +197,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
                       </div>
                     </div>
                     
-                    {/* Actions */}
                     <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                       <button
                         type="button"
