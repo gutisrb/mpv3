@@ -1,7 +1,9 @@
 import React from 'react';
-import { SignIn } from '@clerk/clerk-react';
+import { Auth } from '@supabase/auth-ui-react';
+import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { motion } from 'framer-motion';
 import { Calendar } from 'lucide-react';
+import { supabase } from '../api/supabaseClient';
 
 const Login: React.FC = () => {
   return (
@@ -30,7 +32,12 @@ const Login: React.FC = () => {
         className="mt-8 sm:mx-auto sm:w-full sm:max-w-md"
       >
         <div className="bg-white py-8 px-4 shadow-md sm:rounded-2xl sm:px-10">
-          <SignIn path="/login" routing="path" signUpUrl="/sign-up" />
+          <Auth
+            supabaseClient={supabase}
+            appearance={{ theme: ThemeSupa }}
+            providers={[]}
+            redirectTo={window.location.origin}
+          />
         </div>
         
         <div className="mt-6 text-center">
