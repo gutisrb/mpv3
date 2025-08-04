@@ -83,28 +83,12 @@ const Calendar: React.FC = () => {
   }) => {
     if (!currentProperty) return;
     
-    // TEMPORARY FIX: Use a hardcoded UUID that exists in your database
-    // Replace this with your actual user UUID from the clients table
-    const TEMP_USER_ID = '00000000-0000-0000-0000-000000000000'; // Update this to a real UUID from your clients table
-    
-    try {
-      await createBooking.mutateAsync({
-        property_id: currentProperty.id,
-        user_id: TEMP_USER_ID,
-        start_date: bookingData.start_date,
-        end_date: bookingData.end_date,
-        source: 'manual'
-      });
-    } catch (error) {
-      console.error('Booking creation failed:', error);
-      // Try without user_id as fallback
-      await createBooking.mutateAsync({
-        property_id: currentProperty.id,
-        start_date: bookingData.start_date,
-        end_date: bookingData.end_date,
-        source: 'manual'
-      });
-    }
+    await createBooking.mutateAsync({
+      property_id: currentProperty.id,
+      start_date: bookingData.start_date,
+      end_date: bookingData.end_date,
+      source: 'manual'
+    });
   };
 
   if (!currentProperty) {
