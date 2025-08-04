@@ -6,7 +6,6 @@ import { Home, Calendar, BarChart3, Settings, Building2, MapPin } from 'lucide-r
 // And update the navItems array:
 const navItems = [
   { to: '/dashboard', icon: Home, label: 'Dashboard' },
-  { to: '/properties', icon: Building2, label: 'Properties' },
   { to: '/locations', icon: MapPin, label: 'Locations' },
   { to: '/calendar', icon: Calendar, label: 'Calendar' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
