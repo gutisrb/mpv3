@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from '@/api/supabaseClient';
 import Sidebar from '@/components/layout/Sidebar';
@@ -16,7 +16,7 @@ const queryClient = new QueryClient();
 /** Decides where "/" should go: /dashboard if authed, else /login */
 const HomeRedirect: React.FC = () => {
   const [ready, setReady] = useState(false);
-  const [authed, setAuthed] = useState<boolean>(false);
+  const [authed, setAuthed] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -66,6 +66,18 @@ const ProtectedShell: React.FC<{ children: React.ReactNode }> = ({ children }) =
   );
 };
 
+/** Simple /logout route to clear session & go to /login */
+const Logout: React.FC = () => {
+  const nav = useNavigate();
+  useEffect(() => {
+    (async () => {
+      await supabase.auth.signOut();
+      nav('/login', { replace: true });
+    })();
+  }, [nav]);
+  return <div className="p-6 text-sm text-gray-500">Signing out…</div>;
+};
+
 const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
@@ -77,12 +89,25 @@ const App: React.FC = () => {
 
             {/* Public */}
             <Route path="/login" element={<Login />} />
+            <Route path="/logout" element={<Logout />} />
 
             {/* Protected */}
-            <Route path="/dashboard" element={<ProtectedShell><Dashboard /></ProtectedShell>} />
-            <Route path="/calendar"  element={<ProtectedShell><Calendar  /></ProtectedShell>} />
-            <Route path="/analytics" element={<ProtectedShell><Analytics /></ProtectedShell>} />
-            <Route path="/settings"  element={<ProtectedShell><Settings  /></ProtectedShell>} />
+            <Route
+              path="/dashboard"
+              element={<ProtectedShell><Dashboard /></ProtectedShell>}
+            />
+            <Route
+              path="/calendar"
+              element={<ProtectedShell><Calendar /></ProtectedShell>}
+            />
+            <Route
+              path="/analytics"
+              element={<ProtectedShell><Analytics /></ProtectedShell>}
+            />
+            <Route
+              path="/settings"
+              element={<ProtectedShell><Settings /></ProtectedShell>}
+            />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
