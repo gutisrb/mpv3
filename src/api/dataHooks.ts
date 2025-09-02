@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from './supabaseClient';
 import { format } from 'date-fns';
+import { useClientId } from './useClientId';
 
 // Types
 export interface Property {
@@ -27,12 +28,19 @@ export interface Booking {
 
 // Fetch properties for the current user
 export const useProperties = () => {
+  const { data: clientId, error: clientError, isLoading: isLoadingClient } = useClientId();
+  
   return useQuery({
-    queryKey: ['properties'],
+    queryKey: ['properties', clientId],
     queryFn: async () => {
+      if (!clientId) {
+        throw new Error('Client ID not available');
+      }
+      
       const { data, error } = await supabase
         .from('properties')
-        .select('*');
+        .select('*')
+        .eq('client_id', clientId);
         
       if (error) {
         throw new Error(error.message);
@@ -40,19 +48,26 @@ export const useProperties = () => {
       
       return data as Property[];
     },
-    enabled: true,
+    enabled: !!clientId && !clientError,
   });
 };
 
 // Fetch a single property by ID
 export const useProperty = (propertyId: string) => {
+  const { data: clientId, error: clientError } = useClientId();
+  
   return useQuery({
-    queryKey: ['property', propertyId],
+    queryKey: ['property', propertyId, clientId],
     queryFn: async () => {
+      if (!clientId) {
+        throw new Error('Client ID not available');
+      }
+      
       const { data, error } = await supabase
         .from('properties')
         .select('*')
         .eq('id', propertyId)
+        .eq('client_id', clientId)
         .single();
         
       if (error) {
@@ -61,19 +76,26 @@ export const useProperty = (propertyId: string) => {
       
       return data as Property;
     },
-    enabled: !!propertyId,
+    enabled: !!propertyId && !!clientId && !clientError,
   });
 };
 
 // Fetch bookings for a specific property
 export const useBookings = (propertyId: string) => {
+  const { data: clientId, error: clientError } = useClientId();
+  
   return useQuery({
-    queryKey: ['bookings', propertyId],
+    queryKey: ['bookings', propertyId, clientId],
     queryFn: async () => {
+      if (!clientId) {
+        throw new Error('Client ID not available');
+      }
+      
       const { data, error } = await supabase
         .from('bookings')
         .select('*')
         .eq('property_id', propertyId)
+        .eq('user_id', clientId)
         .order('start_date', { ascending: true });
         
       if (error) {
@@ -82,16 +104,17 @@ export const useBookings = (propertyId: string) => {
       
       return data as Booking[];
     },
-    enabled: !!propertyId,
+    enabled: !!propertyId && !!clientId && !clientError,
   });
 };
 
 // Calculate booking gaps for the next 30 days
 export const useBookingGaps = (propertyId: string) => {
+  const { data: clientId } = useClientId();
   const { data: bookings } = useBookings(propertyId);
   
   return useQuery({
-    queryKey: ['booking-gaps', propertyId],
+    queryKey: ['booking-gaps', propertyId, clientId],
     queryFn: () => {
       if (!bookings) return 0;
       
@@ -133,12 +156,17 @@ export const useBookingGaps = (propertyId: string) => {
 
 // Calculate total nights booked in the next 30 days
 export const useNightsBooked = (propertyId?: string) => {
+  const { data: clientId } = useClientId();
   const { data: bookings } = useBookings(propertyId || '');
   const { data: properties } = useProperties();
   
   return useQuery({
-    queryKey: ['nights-booked', propertyId],
+    queryKey: ['nights-booked', propertyId, clientId],
     queryFn: async () => {
+      if (!clientId) {
+        throw new Error('Client ID not available');
+      }
+      
       const today = new Date();
       const thirtyDaysLater = new Date();
       thirtyDaysLater.setDate(today.getDate() + 30);
@@ -169,7 +197,8 @@ export const useNightsBooked = (propertyId?: string) => {
           const { data } = await supabase
             .from('bookings')
             .select('*')
-            .eq('property_id', property.id);
+            .eq('property_id', property.id)
+            .eq('user_id', clientId);
             
           const propertyBookings = data as Booking[];
           
@@ -201,21 +230,19 @@ export const useNightsBooked = (propertyId?: string) => {
 // Create a new booking
 export const useCreateBooking = () => {
   const queryClient = useQueryClient();
+  const { data: clientId } = useClientId();
   
   return useMutation({
     mutationFn: async (booking: Omit<Booking, 'id' | 'created_at' | 'user_id'>) => {
-      // Get the current user
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        throw new Error('User not authenticated');
+      if (!clientId) {
+        throw new Error('Client ID not available');
       }
       
       const { data, error } = await supabase
         .from('bookings')
         .insert([{
           ...booking,
-          user_id: user.id // Add the authenticated user's ID
+          user_id: clientId
         }])
         .select()
         .single();
@@ -231,6 +258,7 @@ export const useCreateBooking = () => {
         .from('properties')
         .select('name')
         .eq('id', booking.property_id)
+        .eq('client_id', clientId)
         .single();
       
       // Call webhook with booking data
@@ -252,10 +280,10 @@ export const useCreateBooking = () => {
     },
     onSuccess: (_, variables) => {
       // Invalidate relevant queries to trigger refetches
-      queryClient.invalidateQueries({ queryKey: ['bookings', variables.property_id] });
-      queryClient.invalidateQueries({ queryKey: ['booking-gaps', variables.property_id] });
-      queryClient.invalidateQueries({ queryKey: ['nights-booked', variables.property_id] });
-      queryClient.invalidateQueries({ queryKey: ['nights-booked'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings', variables.property_id, clientId] });
+      queryClient.invalidateQueries({ queryKey: ['booking-gaps', variables.property_id, clientId] });
+      queryClient.invalidateQueries({ queryKey: ['nights-booked', variables.property_id, clientId] });
+      queryClient.invalidateQueries({ queryKey: ['nights-booked', undefined, clientId] });
     },
   });
 };
@@ -263,18 +291,24 @@ export const useCreateBooking = () => {
 // Delete a booking
 export const useDeleteBooking = () => {
   const queryClient = useQueryClient();
+  const { data: clientId } = useClientId();
   
   return useMutation({
     mutationFn: async (bookingId: string) => {
+      if (!clientId) {
+        throw new Error('Client ID not available');
+      }
+      
       // Get the booking data from the cache instead of making a new request
-      const bookings = queryClient.getQueryData<Booking[]>(['bookings']) || [];
+      const bookings = queryClient.getQueryData<Booking[]>(['bookings', undefined, clientId]) || [];
       const booking = bookings.find(b => b.id === bookingId);
       
       // Delete the booking
       const { error } = await supabase
         .from('bookings')
         .delete()
-        .eq('id', bookingId);
+        .eq('id', bookingId)
+        .eq('user_id', clientId);
         
       if (error) {
         throw new Error(error.message);
@@ -287,6 +321,7 @@ export const useDeleteBooking = () => {
           .from('properties')
           .select('name')
           .eq('id', booking.property_id)
+          .eq('client_id', clientId)
           .single();
         
         const webhookUrl = import.meta.env.VITE_ICS_WEBHOOK_BASE || 'https://hook.eu2.make.com/1p4gelkvs573a5au5sngbc2jtlvmou9d';
@@ -308,10 +343,10 @@ export const useDeleteBooking = () => {
     },
     onSuccess: (propertyId) => {
       if (propertyId) {
-        queryClient.invalidateQueries({ queryKey: ['bookings', propertyId] });
-        queryClient.invalidateQueries({ queryKey: ['booking-gaps', propertyId] });
-        queryClient.invalidateQueries({ queryKey: ['nights-booked', propertyId] });
-        queryClient.invalidateQueries({ queryKey: ['nights-booked'] });
+        queryClient.invalidateQueries({ queryKey: ['bookings', propertyId, clientId] });
+        queryClient.invalidateQueries({ queryKey: ['booking-gaps', propertyId, clientId] });
+        queryClient.invalidateQueries({ queryKey: ['nights-booked', propertyId, clientId] });
+        queryClient.invalidateQueries({ queryKey: ['nights-booked', undefined, clientId] });
       }
     },
   });
@@ -319,12 +354,13 @@ export const useDeleteBooking = () => {
 
 // Calculate total open gaps across all properties
 export const useTotalGaps = () => {
+  const { data: clientId } = useClientId();
   const { data: properties } = useProperties();
   
   return useQuery({
-    queryKey: ['total-gaps'],
+    queryKey: ['total-gaps', clientId],
     queryFn: async () => {
-      if (!properties) return 0;
+      if (!properties || !clientId) return 0;
       
       let totalGaps = 0;
       
@@ -333,6 +369,7 @@ export const useTotalGaps = () => {
           .from('bookings')
           .select('*')
           .eq('property_id', property.id)
+          .eq('user_id', clientId);
           .order('start_date', { ascending: true });
           
         if (!bookings) continue;
@@ -368,19 +405,27 @@ export const useTotalGaps = () => {
       
       return totalGaps;
     },
-    enabled: !!properties,
+    enabled: !!properties && !!clientId,
   });
 };
 
 // Create a new property
 export const useCreateProperty = () => {
   const queryClient = useQueryClient();
+  const { data: clientId } = useClientId();
   
   return useMutation({
     mutationFn: async (property: { name: string; location: string; airbnb_ical?: string; booking_ical?: string }) => {
+      if (!clientId) {
+        throw new Error('Client ID not available');
+      }
+      
       const { data, error } = await supabase
         .from('properties')
-        .insert([property])
+        .insert([{
+          ...property,
+          client_id: clientId
+        }])
         .select()
         .single();
         
@@ -391,12 +436,13 @@ export const useCreateProperty = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      queryClient.invalidateQueries({ queryKey: ['properties', clientId] });
     },
   });
-}
+};
 export const useUpdateProperty = () => {
   const queryClient = useQueryClient();
+  const { data: clientId } = useClientId();
   
   return useMutation({
     mutationFn: async ({ 
@@ -406,10 +452,15 @@ export const useUpdateProperty = () => {
       propertyId: string; 
       updates: Partial<Pick<Property, 'name' | 'location' | 'airbnb_ical' | 'booking_ical'>> 
     }) => {
+      if (!clientId) {
+        throw new Error('Client ID not available');
+      }
+      
       const { data, error } = await supabase
         .from('properties')
         .update(updates)
         .eq('id', propertyId)
+        .eq('client_id', clientId)
         .select()
         .single();
         
@@ -421,8 +472,8 @@ export const useUpdateProperty = () => {
     },
     onSuccess: (updatedProperty) => {
       // Invalidate and refetch property queries
-      queryClient.invalidateQueries({ queryKey: ['properties'] });
-      queryClient.invalidateQueries({ queryKey: ['property', updatedProperty.id] });
+      queryClient.invalidateQueries({ queryKey: ['properties', clientId] });
+      queryClient.invalidateQueries({ queryKey: ['property', updatedProperty.id, clientId] });
     },
   });
 };

@@ -1,8 +1,10 @@
 import React from 'react';
 import { useApp } from '@/context/AppContext';
+import { useClientId } from '@/api/useClientId';
 import { ChevronDown, User } from 'lucide-react';
 
 const Header: React.FC = () => {
+  const { data: clientId, error: clientError, isLoading: isLoadingClient } = useClientId();
   const {
     locations,
     properties,
@@ -24,6 +26,26 @@ const Header: React.FC = () => {
     const property = properties.find(p => p.id === propertyId) || null;
     setProperty(property);
   };
+
+  // Show loading state while checking client
+  if (isLoadingClient) {
+    return (
+      <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-center px-6">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+      </header>
+    );
+  }
+
+  // Show error state if client lookup fails
+  if (clientError) {
+    return (
+      <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-center px-6">
+        <div className="text-center">
+          <div className="text-red-600 text-sm">{clientError.message}</div>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">

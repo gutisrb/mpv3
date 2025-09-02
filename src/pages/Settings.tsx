@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useProperties, useUpdateProperty } from '@/api/dataHooks';
+import { useClientId } from '@/api/useClientId';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Building2, Copy, Check, Edit3, Save, X, Link, ExternalLink, Shield, Globe } from 'lucide-react';
 
 const Settings: React.FC = () => {
+  const { data: clientId, error: clientError, isLoading: isLoadingClient } = useClientId();
   const { data: properties = [], isLoading } = useProperties();
   const updateProperty = useUpdateProperty();
   const [editingProperty, setEditingProperty] = useState<string | null>(null);
@@ -76,12 +78,30 @@ const Settings: React.FC = () => {
     }));
   };
 
-  if (isLoading) {
+  // Show loading state while checking client or loading properties
+  if (isLoadingClient || isLoading) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-blue-600"></div>
-          <p className="mt-4 text-gray-600 text-lg">Loading channel manager settings...</p>
+          <p className="mt-4 text-gray-600 text-lg">
+            {isLoadingClient ? 'Checking account...' : 'Loading channel manager settings...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if client lookup fails
+  if (clientError) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Building2 className="w-8 h-8 text-red-600" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Account Setup Required</h3>
+          <p className="text-gray-500 mb-4">{clientError.message}</p>
         </div>
       </div>
     );

@@ -4,10 +4,12 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { useApp } from '@/context/AppContext';
 import { useBookings, useCreateBooking } from '@/api/dataHooks';
+import { useClientId } from '@/api/useClientId';
 import BookingModal from '@/components/calendar/BookingModal';
 import { Plus } from 'lucide-react';
 
 const Calendar: React.FC = () => {
+  const { data: clientId, error: clientError, isLoading: isLoadingClient } = useClientId();
   const { currentProperty } = useApp();
   const { data: bookings = [] } = useBookings(currentProperty?.id || '');
   const createBooking = useCreateBooking();
@@ -90,6 +92,33 @@ const Calendar: React.FC = () => {
       source: 'manual'
     });
   };
+
+  // Show loading state while checking client
+  if (isLoadingClient) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-blue-600"></div>
+          <p className="mt-4 text-gray-600">Checking account...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if client lookup fails
+  if (clientError) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Plus className="w-8 h-8 text-red-600" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Account Setup Required</h3>
+          <p className="text-gray-500">{clientError.message}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!currentProperty) {
     return (
