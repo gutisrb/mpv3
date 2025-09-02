@@ -369,7 +369,7 @@ export const useTotalGaps = () => {
           .from('bookings')
           .select('*')
           .eq('property_id', property.id)
-          .eq('user_id', clientId);
+          .eq('user_id', clientId)
           .order('start_date', { ascending: true });
           
         if (!bookings) continue;
