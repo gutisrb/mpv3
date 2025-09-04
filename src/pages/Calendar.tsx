@@ -1,4 +1,3 @@
-// src/pages/Calendar.tsx
 import React, { useMemo, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -7,7 +6,11 @@ import { useApp } from '@/context/AppContext';
 import { useBookings, useCreateBooking, useDeleteBooking } from '@/api/dataHooks';
 import { useClientId } from '@/api/useClientId';
 import BookingModal from '@/components/calendar/BookingModal';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { Plus } from 'lucide-react';
+
+// Ensure YYYY-MM-DD (FullCalendar passes ISO strings sometimes)
+const toYMD = (s?: string) => (s ? s.substring(0, 10) : '');
 
 type SelectedRange = { start: string; end: string } | null;
 
@@ -23,19 +26,22 @@ const Calendar: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDates, setSelectedDates] = useState<SelectedRange>(null);
 
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; start: string; end: string } | null>(null);
+
   const events = useMemo(
     () =>
       bookings.map((b) => ({
         id: b.id,
-        start: b.start_date,     // ISO
-        end: b.end_date,         // ISO (FullCalendar treats end as exclusive; OK for allDay)
+        start: b.start_date,
+        end: b.end_date,
         title: b.source || 'Rezervacija',
         allDay: true,
       })),
     [bookings]
   );
 
-  // ----- Create booking flow -----
+  // ----- Create -----
   const handleCreateBooking = async (form: {
     guest_name: string;
     guest_email: string;
@@ -57,39 +63,39 @@ const Calendar: React.FC = () => {
     setSelectedDates(null);
   };
 
-  // Single-tap a date → open modal for that day
   const onDateClick = (arg: { dateStr: string }) => {
-    setSelectedDates({ start: arg.dateStr, end: arg.dateStr });
+    const d = toYMD(arg.dateStr);
+    setSelectedDates({ start: d, end: d });
     setIsModalOpen(true);
   };
 
-  // Drag/select (or long-press on mobile) → open modal with range
   const onSelect = (arg: { startStr: string; endStr: string }) => {
-    setSelectedDates({ start: arg.startStr, end: arg.endStr });
+    const s = toYMD(arg.startStr);
+    const e = toYMD(arg.endStr) || s;
+    setSelectedDates({ start: s, end: e });
     setIsModalOpen(true);
   };
 
-  // ----- Delete booking flow -----
-  // Tap an existing event (booking) → confirm → delete
-  const onEventClick = async (info: any) => {
-    try {
-      const bookingId = info?.event?.id as string | undefined;
-      const start = info?.event?.startStr || '';
-      const end = info?.event?.endStr || '';
-      if (!bookingId || !propertyId) return;
+  // ----- Delete -----
+  const onEventClick = (info: any) => {
+    const id = info?.event?.id as string | undefined;
+    if (!id) return;
+    const start = toYMD(info?.event?.startStr);
+    const end = toYMD(info?.event?.endStr);
+    setPendingDelete({ id, start, end });
+    setConfirmOpen(true);
+  };
 
-      const pretty = (s: string) => (s ? new Date(s).toLocaleDateString() : '');
-      const ok = window.confirm(
-        `Obrisati rezervaciju?\n\nPeriod: ${pretty(start)} → ${pretty(end)}`
-      );
-      if (!ok) return;
+  const confirmDelete = async () => {
+    if (!pendingDelete || !propertyId) return;
+    await deleteBooking.mutateAsync({ bookingId: pendingDelete.id, propertyId });
+    setConfirmOpen(false);
+    setPendingDelete(null);
+  };
 
-      await deleteBooking.mutateAsync({ bookingId, propertyId });
-      // FullCalendar will refresh because our query invalidates onSuccess in the hook
-    } catch (e) {
-      console.error(e);
-      alert('Brisanje nije uspelo. Pokušajte ponovo.');
-    }
+  const cancelDelete = () => {
+    setConfirmOpen(false);
+    setPendingDelete(null);
   };
 
   // ----- UI states -----
@@ -131,12 +137,11 @@ const Calendar: React.FC = () => {
         <FullCalendar
           plugins={[dayGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
-          // Mobile-friendly taps
           dateClick={onDateClick}
           selectable
           select={onSelect}
           eventClick={onEventClick}
-          // Remove long-press delays on mobile
+          // Mobile touch friendliness
           selectLongPressDelay={0}
           eventLongPressDelay={0}
           longPressDelay={0}
@@ -148,9 +153,7 @@ const Calendar: React.FC = () => {
           dayMaxEventRows={2}
           dayMaxEvents
           handleWindowResize
-          // Data
           events={events}
-          // Touch target classes (paired with CSS you already added)
           dayCellClassNames={() => ['touch-target']}
           eventClassNames={() => ['touch-target']}
           headerToolbar={{
@@ -167,6 +170,20 @@ const Calendar: React.FC = () => {
         onSubmit={handleCreateBooking}
         initialStartDate={selectedDates?.start}
         initialEndDate={selectedDates?.end}
+      />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Obrisati rezervaciju?"
+        message={
+          <div className="text-sm">
+            Period: <b>{pendingDelete?.start}</b> → <b>{pendingDelete?.end}</b>
+          </div>
+        }
+        confirmText="Obriši"
+        cancelText="Otkaži"
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
       />
     </div>
   );
