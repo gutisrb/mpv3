@@ -18,7 +18,7 @@ export interface Booking {
   client_id: string | null;
   start_date: string; // YYYY-MM-DD
   end_date: string;   // YYYY-MM-DD (inclusive in DB)
-  source: string | null; // 'manual' | 'airbnb' | 'booking.com' | 'web' | etc.
+  source: string | null; // 'manual' | 'airbnb' | 'booking.com' | etc.
   external_uid: string | null;
   channel: string | null;
   created_at: string;
@@ -84,38 +84,34 @@ export const useCreateBooking = () => {
   });
 };
 
+/**
+ * Delete ONE booking (manual-only) with strong filters and success check.
+ * If no row is deleted, throws an error so the UI can report it.
+ */
 export const useDeleteBooking = () => {
   const qc = useQueryClient();
   const { data: clientId } = useClientId();
   return useMutation({
-    mutationFn: async ({ bookingId, propertyId }: { bookingId: string; propertyId: string; }) => {
-      const { error } = await supabase
+    mutationFn: async ({
+      bookingId,
+      propertyId,
+    }: {
+      bookingId: string;
+      propertyId: string;
+    }) => {
+      const { data, error } = await supabase
         .from('bookings')
         .delete()
         .eq('id', bookingId)
-        .eq('client_id', clientId!)
-        .eq('source', 'manual'); // ✅ manual-only guard
-      if (error) throw new Error(error.message);
-      return true;
-    },
-    onSuccess: (_ok, { propertyId }) => {
-      qc.invalidateQueries({ queryKey: ['bookings', propertyId] });
-    }
-  });
-};
-
-export const useDeleteAllManualBookings = () => {
-  const qc = useQueryClient();
-  const { data: clientId } = useClientId();
-  return useMutation({
-    mutationFn: async ({ propertyId }: { propertyId: string }) => {
-      const { error } = await supabase
-        .from('bookings')
-        .delete()
-        .eq('client_id', clientId!)
         .eq('property_id', propertyId)
-        .eq('source', 'manual'); // ✅ manual-only
+        .eq('client_id', clientId!)
+        .eq('source', 'manual')
+        .select('id'); // returns deleted rows
+
       if (error) throw new Error(error.message);
+      if (!data || data.length === 0) {
+        throw new Error('Nothing was deleted. Check RLS and filters (manual-only).');
+      }
       return true;
     },
     onSuccess: (_ok, { propertyId }) => {
@@ -124,6 +120,7 @@ export const useDeleteAllManualBookings = () => {
   });
 };
 
+/** (kept here if other parts of app import it; not used on Calendar now) */
 export const useUpdateProperty = () => {
   const qc = useQueryClient();
   const { data: clientId } = useClientId();
