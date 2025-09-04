@@ -124,3 +124,30 @@ export const useDeleteBooking = () => {
     }
   });
 };
+
+/** Keep this export — other parts of the app import it */
+export const useUpdateProperty = () => {
+  const qc = useQueryClient();
+  const { data: clientId } = useClientId();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      updates
+    }: {
+      id: string;
+      updates: Partial<Omit<Property, 'id' | 'client_id'>>;
+    }) => {
+      const { error } = await supabase
+        .from('properties')
+        .update(updates)
+        .eq('id', id)
+        .eq('client_id', clientId!);
+      if (error) throw new Error(error.message);
+      return true;
+    },
+    onSuccess: (_ok, { id }) => {
+      qc.invalidateQueries({ queryKey: ['property', id] });
+      qc.invalidateQueries({ queryKey: ['properties'] });
+    }
+  });
+};
