@@ -48,6 +48,10 @@ const ProtectedShell: React.FC<{ children: React.ReactNode }> = ({ children }) =
     })();
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
       setIsAuthed(!!session?.user);
+      // Clear all cached data when auth state changes
+      if (!session?.user) {
+        queryClient.clear();
+      }
     });
     return () => { mounted = false; sub.subscription.unsubscribe(); };
   }, []);
@@ -71,6 +75,8 @@ const Logout: React.FC = () => {
   const nav = useNavigate();
   useEffect(() => {
     (async () => {
+      // Clear all cached data before signing out
+      queryClient.clear();
       await supabase.auth.signOut();
       nav('/login', { replace: true });
     })();

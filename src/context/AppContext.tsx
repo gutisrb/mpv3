@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/api/supabaseClient';
 import { useProperties } from '@/api/dataHooks';
 
 interface Location {
@@ -31,10 +33,24 @@ const AppContext = createContext<AppContextValue>({
 });
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
+  const queryClient = useQueryClient();
   const { data: allProperties } = useProperties();
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [currentProperty, setCurrentProperty] = useState<Property | null>(null);
 
+  // Listen for auth changes and clear cache + reset state
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || (event === 'SIGNED_IN' && session)) {
+        // Clear all cached data and reset state
+        queryClient.clear();
+        setCurrentLocation(null);
+        setCurrentProperty(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [queryClient]);
   // Extract unique locations from properties
   const locations = React.useMemo(() => {
     if (!allProperties) return [];
