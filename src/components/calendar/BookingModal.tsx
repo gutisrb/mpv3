@@ -4,12 +4,9 @@ import { parseISO, isValid, format } from 'date-fns';
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (payload: {
-    start_date: string; // YYYY-MM-DD
-    end_date: string;   // YYYY-MM-DD
-  }) => Promise<void> | void;
-  initialStartDate?: string | null; // YYYY-MM-DD or ISO
-  initialEndDate?: string | null;   // YYYY-MM-DD or ISO
+  onSubmit: (payload: { start_date: string; end_date: string }) => Promise<void> | void;
+  initialStartDate?: string | null;
+  initialEndDate?: string | null;
 };
 
 function toYMD(value?: string | null): string {
@@ -20,13 +17,7 @@ function toYMD(value?: string | null): string {
   return format(d, 'yyyy-MM-dd');
 }
 
-const BookingModal: React.FC<Props> = ({
-  isOpen,
-  onClose,
-  onSubmit,
-  initialStartDate,
-  initialEndDate
-}) => {
+const BookingModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, initialStartDate, initialEndDate }) => {
   const [start, setStart] = useState<string>('');
   const [end, setEnd] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
@@ -72,35 +63,17 @@ const BookingModal: React.FC<Props> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm mb-1">Dolazak</label>
-              <input
-                type="date"
-                className="w-full border rounded-md px-3 py-2"
-                value={start}
-                onChange={(e) => setStart(e.target.value)}
-                required
-              />
+              <input type="date" className="w-full border rounded-md px-3 py-2" value={start} onChange={(e) => setStart(e.target.value)} required />
             </div>
             <div>
               <label className="block text-sm mb-1">Odlazak</label>
-              <input
-                type="date"
-                className="w-full border rounded-md px-3 py-2"
-                value={end}
-                onChange={(e) => setEnd(e.target.value)}
-                required
-              />
+              <input type="date" className="w-full border rounded-md px-3 py-2" value={end} onChange={(e) => setEnd(e.target.value)} required />
             </div>
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-1">
-            <button type="button" onClick={onClose} className="px-3 py-2 rounded-md border">
-              Otkaži
-            </button>
-            <button
-              type="submit"
-              disabled={!canSubmit || submitting}
-              className="px-3 py-2 rounded-md bg-slate-900 text-white disabled:opacity-50"
-            >
+            <button type="button" onClick={onClose} className="px-3 py-2 rounded-md border">Otkaži</button>
+            <button type="submit" disabled={!canSubmit || submitting} className="px-3 py-2 rounded-md bg-slate-900 text-white disabled:opacity-50">
               {submitting ? 'Čuvanje…' : 'Sačuvaj rezervaciju'}
             </button>
           </div>
