@@ -1,3 +1,8 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* --- FullCalendar touch & clickability tweaks --- */
+.fc .fc-daygrid-day-frame { cursor: pointer; }
+.fc .fc-event { cursor: pointer; }
+.fc .fc-scrollgrid, .fc .fc-daygrid { touch-action: manipulation; }
