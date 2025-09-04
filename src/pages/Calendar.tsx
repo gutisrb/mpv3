@@ -1,90 +1,78 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { useApp } from '@/context/AppContext';
-import { useBookings, useCreateBooking } from '@/api/dataHooks';
+import { useBookings, useCreateBooking, useDeleteBooking, useDeleteAllManualBookings, Booking } from '@/api/dataHooks';
 import { useClientId } from '@/api/useClientId';
 import BookingModal from '@/components/calendar/BookingModal';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 
+/**
+ * Calendar page
+ * - Adds manual-only delete on event click
+ * - Adds a bulk "Delete all manual bookings" button
+ * - Mobile friendly (long press to select)
+ * - Multi-day bookings render correctly (exclusive end)
+ */
 const Calendar: React.FC = () => {
   const { data: clientId, error: clientError, isLoading: isLoadingClient } = useClientId();
   const { currentProperty } = useApp();
-  const { data: bookings = [] } = useBookings(currentProperty?.id || '');
+  const propertyId = currentProperty?.id || '';
+  const { data: bookings = [] } = useBookings(propertyId);
   const createBooking = useCreateBooking();
+  const deleteBooking = useDeleteBooking();
+  const deleteAllManual = useDeleteAllManualBookings();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDates, setSelectedDates] = useState<{ start: Date; end: Date } | null>(null);
 
-  const getBookingDetails = (source: any) => {
-    const cleanSource = String(source || '').toLowerCase().trim();
-    
-    if (cleanSource === 'airbnb') {
-      return { color: '#FF5A5F', title: 'Airbnb' };
-    }
-    
-    if (cleanSource === 'booking.com') {
-      return { color: '#003580', title: 'Booking.com' };
-    }
-    
-    if (cleanSource === 'manual' || cleanSource === 'web' || cleanSource === 'website') {
-      return { color: '#F59E0B', title: 'Website' };
-    }
-    
-    return { color: '#6B7280', title: `${cleanSource || 'Unknown'}` };
+  const getBookingDetails = (source: string | null) => {
+    const cleanSource = (source || '').toLowerCase().trim();
+    if (cleanSource === 'airbnb')    return { color: '#FF5A5F', title: 'Airbnb' };
+    if (cleanSource === 'booking.com' || cleanSource === 'booking') return { color: '#003580', title: 'Booking.com' };
+    if (cleanSource === 'manual' || cleanSource === 'web' || cleanSource === 'website') return { color: '#F59E0B', title: 'Manual' };
+    return { color: '#6B7280', title: cleanSource || 'Unknown' };
   };
 
-  const events = React.useMemo(() => {
-    return bookings.map((booking) => {
+  const events = useMemo(() => {
+    return bookings.map((booking: Booking) => {
       const details = getBookingDetails(booking.source);
-      
-      // Add one day to end for FullCalendar
-      const endDate = new Date(booking.end_date);
-      endDate.setDate(endDate.getDate() + 1);
-      
+      // FullCalendar expects an exclusive end date to span both days
+      const endExclusive = new Date(booking.end_date);
+      endExclusive.setDate(endExclusive.getDate() + 1);
       return {
         id: booking.id,
         title: details.title,
         start: booking.start_date,
-        end: endDate.toISOString().split('T')[0],
+        end: endExclusive.toISOString().split('T')[0],
+        allDay: true,
         backgroundColor: details.color,
         borderColor: details.color,
         textColor: '#FFFFFF',
-        display: 'background',
-        extendedProps: {
-          source: booking.source
-        }
+        extendedProps: { source: booking.source }
       };
     });
   }, [bookings]);
 
   const isDateRangeBooked = (start: Date, end: Date) => {
-    return bookings.some(booking => {
-      const bookingStart = new Date(booking.start_date);
-      const bookingEnd = new Date(booking.end_date);
-      return (start < bookingEnd && end > bookingStart);
+    return bookings.some((b) => {
+      const bs = new Date(b.start_date);
+      const be = new Date(b.end_date);
+      return start < be && end > bs;
     });
   };
 
   const handleDateSelect = (selectInfo: any) => {
     const start = selectInfo.start;
     const end = selectInfo.end;
-    
-    if (isDateRangeBooked(start, end)) {
-      return;
-    }
-    
+    if (isDateRangeBooked(start, end)) return;
     setSelectedDates({ start, end });
     setIsModalOpen(true);
   };
 
-  const handleCreateBooking = async (bookingData: {
-    start_date: string;
-    end_date: string;
-    source: 'airbnb' | 'booking.com' | 'manual' | 'web';
-  }) => {
+  const handleCreateBooking = async (bookingData: { start_date: string; end_date: string; source: 'manual' | 'web' | 'airbnb' | 'booking.com' }) => {
     if (!currentProperty) return;
-    
     await createBooking.mutateAsync({
       property_id: currentProperty.id,
       start_date: bookingData.start_date,
@@ -93,19 +81,34 @@ const Calendar: React.FC = () => {
     });
   };
 
-  // Show loading state while checking client
+  const handleEventClick = (clickInfo: any) => {
+    const b = bookings.find((x) => x.id === clickInfo.event.id);
+    if (!b) return;
+    const s = (b.source || '').toLowerCase();
+    if (s !== 'manual' && s !== 'web' && s !== 'website') {
+      alert('Only manual bookings can be deleted.');
+      return;
+    }
+    if (!currentProperty) return;
+    if (confirm('Delete this manual booking?')) {
+      deleteBooking.mutate({ bookingId: b.id, propertyId: currentProperty.id });
+    }
+  };
+
+  // Loading/empty states
   if (isLoadingClient) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-blue-600"></div>
-          <p className="mt-4 text-gray-600">Checking account...</p>
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Plus className="w-8 h-8 text-blue-600" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Checking your account…</h3>
+          <p className="text-gray-500">Please wait a moment.</p>
         </div>
       </div>
     );
   }
-
-  // Show error state if client lookup fails
   if (clientError) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
@@ -119,18 +122,15 @@ const Calendar: React.FC = () => {
       </div>
     );
   }
-
   if (!currentProperty) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Plus className="w-8 h-8 text-blue-600" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Property</h3>
-          <p className="text-gray-500">
-            Choose a property from the dropdown above to view its calendar.
-          </p>
+          <p className="text-gray-500">Choose a property from the dropdown above to view its calendar.</p>
         </div>
       </div>
     );
@@ -139,98 +139,50 @@ const Calendar: React.FC = () => {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">{currentProperty.name}</h1>
-        <p className="text-gray-600">Manage your bookings and availability</p>
+        <h1 className="text-2xl font-semibold text-gray-900">Calendar — {currentProperty.name}</h1>
+        <p className="text-gray-500">Tap/Click a manual booking to delete it. Long-press on a date to create a booking on mobile.</p>
+      </div>
+
+      {/* Danger Zone: bulk delete */}
+      <div className="bg-white rounded-2xl shadow-sm border border-red-200 p-6 mb-6">
+        <h3 className="text-lg font-semibold text-red-700 mb-2">Danger Zone</h3>
+        <p className="text-sm text-red-600 mb-4">
+          This will permanently delete <strong>all manual bookings</strong> for this property. Bookings from Airbnb / Booking.com will not be touched.
+        </p>
+        <button
+          onClick={async () => {
+            if (!currentProperty) return;
+            if (!confirm('Delete ALL manual bookings for this property? This cannot be undone.')) return;
+            try {
+              await deleteAllManual.mutateAsync({ propertyId: currentProperty.id });
+              alert('All manual bookings were deleted.');
+            } catch (e: any) {
+              alert(e?.message || 'Failed to delete manual bookings.');
+            }
+          }}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400"
+        >
+          <Trash2 className="w-4 h-4" />
+          Delete all manual bookings
+        </button>
       </div>
 
       {/* Legend */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Booking Sources</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-red-50 to-red-100 border border-red-200">
-            <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: '#FF5A5F' }}></div>
-            <span className="text-sm font-medium text-gray-800">Airbnb</span>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        {[
+          { color: '#F59E0B', label: 'Manual' },
+          { color: '#FF5A5F', label: 'Airbnb' },
+          { color: '#003580', label: 'Booking.com' },
+          { color: '#6B7280', label: 'Other' },
+        ].map((it) => (
+          <div key={it.label} className="flex items-center gap-2">
+            <span className="inline-block w-4 h-4 rounded" style={{ backgroundColor: it.color }} />
+            <span className="text-sm text-gray-600">{it.label}</span>
           </div>
-          <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200">
-            <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: '#003580' }}></div>
-            <span className="text-sm font-medium text-gray-800">Booking.com</span>
-          </div>
-          <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-amber-50 to-amber-100 border border-amber-200">
-            <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: '#F59E0B' }}></div>
-            <span className="text-sm font-medium text-gray-800">Website</span>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Calendar */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <style jsx global>{`
-          .fc {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-          }
-          
-          .fc-header-toolbar {
-            padding: 1.5rem 1.5rem 1rem 1.5rem;
-            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-            border-bottom: 1px solid #e2e8f0;
-          }
-          
-          .fc-toolbar-title {
-            font-size: 1.5rem !important;
-            font-weight: 700 !important;
-            color: #1e293b;
-          }
-          
-          .fc-button {
-            border: none !important;
-            background: #3b82f6 !important;
-            color: white !important;
-            border-radius: 0.75rem !important;
-            padding: 0.5rem 1rem !important;
-            font-weight: 500 !important;
-            transition: all 0.2s ease !important;
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
-          }
-          
-          .fc-button:hover {
-            background: #2563eb !important;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px 0 rgba(59, 130, 246, 0.4) !important;
-          }
-          
-          .fc-daygrid-day {
-            border: 1px solid #f1f5f9 !important;
-            transition: background-color 0.2s ease;
-            position: relative;
-          }
-          
-          .fc-daygrid-day-number {
-            position: relative !important;
-            z-index: 3 !important;
-            color: #1f2937 !important;
-            font-weight: 600 !important;
-            text-shadow: 0 0 3px rgba(255, 255, 255, 0.8) !important;
-          }
-          
-          .fc-bg-event {
-            opacity: 0.8 !important;
-            border: none !important;
-          }
-          
-          .fc-event-title {
-            position: absolute !important;
-            bottom: 2px !important;
-            left: 2px !important;
-            right: 2px !important;
-            font-size: 0.7rem !important;
-            font-weight: 600 !important;
-            text-align: center !important;
-            color: white !important;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
-            z-index: 4 !important;
-          }
-        `}</style>
-        
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
         <FullCalendar
           plugins={[dayGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
@@ -238,25 +190,16 @@ const Calendar: React.FC = () => {
           selectable={true}
           selectMirror={true}
           select={handleDateSelect}
+          eventClick={handleEventClick}
+          selectLongPressDelay={250}
           height="auto"
-          headerToolbar={{
-            left: 'prev,next today',
-            center: 'title',
-            right: ''
-          }}
+          headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
           dayMaxEvents={false}
           moreLinkClick="popover"
-          eventDisplay="background"
           fixedWeekCount={false}
           showNonCurrentDates={false}
-          dayHeaderFormat={{ weekday: 'short' }}
-          buttonText={{
-            today: 'Today'
-          }}
-          buttonIcons={{
-            prev: 'chevron-left',
-            next: 'chevron-right'
-          }}
+          dayHeaderFormat={{ weekday: 'short' } as any}
+          buttonText={{ today: 'Today' }}
         />
       </div>
 
