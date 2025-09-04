@@ -83,7 +83,7 @@ const Calendar: React.FC = () => {
       endExclusive.setDate(endExclusive.getDate() + 1);
       return {
         id: b.id,
-        title: '', // we keep it empty to avoid text crowding; cell stays fully filled
+        title: '',
         start: b.start_date,
         end: endExclusive.toISOString().split('T')[0],
         allDay: true,
@@ -121,14 +121,25 @@ const Calendar: React.FC = () => {
     });
   };
 
+  /** Helper: open create modal with a safe single-night default (handles TZ) */
+  const openCreateForDay = (dayStr: string) => {
+    // Use noon to avoid timezone shifting the date
+    const start = new Date(`${dayStr}T12:00:00`);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    setSelectedDates({ start, end });
+    setIsModalOpen(true);
+  };
+
   /** Click anywhere in a day cell:
    *  - if it falls within a MANUAL booking → open confirm to delete the whole booking
    *  - if it falls within an OTA booking → show info and do nothing
-   *  - if empty → do nothing (creation uses long-press/drag select)
+   *  - if empty → OPEN CREATE MODAL (tap-to-create on mobile)
    */
   const handleDateClick = (info: any) => {
     const day = info.dateStr as string; // YYYY-MM-DD
-    // First look for a manual booking that covers this date
+
+    // Manual booking covering this day?
     const manual = bookings.find(
       (b) =>
         (b.source || '').toLowerCase() === 'manual' &&
@@ -140,15 +151,19 @@ const Calendar: React.FC = () => {
       setDeleteOpen(true);
       return;
     }
-    // If it’s booked but not manual, tell the user it can’t be deleted
+
+    // Any booking at all covering this day?
     const anyBooked = bookings.find((b) => day >= b.start_date && day <= b.end_date);
     if (anyBooked) {
-      alert('Only manual bookings can be deleted.');
+      alert('That date is already booked.');
+      return;
     }
-    // else: empty day — do nothing (keep your existing long-press to create)
+
+    // Empty day → create (mobile tap-friendly)
+    openCreateForDay(day);
   };
 
-  // (kept for completeness, though dateClick already covers the whole cell)
+  // (also keep eventClick for redundancy)
   const handleEventClick = (clickInfo: any) => {
     const b = bookings.find((x) => x.id === clickInfo.event.id);
     if (!b) return;
@@ -220,7 +235,7 @@ const Calendar: React.FC = () => {
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-gray-900">Calendar — {currentProperty.name}</h1>
         <p className="text-gray-500">
-          Tap any booked day to delete the whole manual booking. Long-press on a date to create a booking on mobile.
+          Tap any booked day to delete the whole manual booking. Tap an empty day to add a booking. Long-press/drag also works.
         </p>
       </div>
 
@@ -231,9 +246,9 @@ const Calendar: React.FC = () => {
           events={events}
           selectable={true}
           selectMirror={true}
-          select={handleDateSelect}
-          dateClick={handleDateClick}        // ✅ click anywhere in the filled box
-          eventClick={handleEventClick}      // also works if event layer is clicked
+          select={handleDateSelect}    // long-press/drag to create a range
+          dateClick={handleDateClick}  // tap empty day to create; tap booked day to delete (manual only)
+          eventClick={handleEventClick}
           selectLongPressDelay={250}
           height="auto"
           headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
