@@ -77,15 +77,16 @@ export const useCreateBooking = () => {
       return data as Booking;
     },
     onSuccess: () => {
-      // ✅ Make sure ANY bookings query refreshes (propertyId + clientId variants)
+      // Refresh ALL bookings queries (covers any property/client combinations)
       qc.invalidateQueries({ predicate: q => Array.isArray(q.queryKey) && q.queryKey[0] === 'bookings' });
     }
   });
 };
 
 /**
- * Delete exactly one booking row by ID after verifying it's MANUAL and
- * belongs to the current property & client. RLS still enforces final auth.
+ * Delete one booking by ID after validating it's MANUAL and belongs to the
+ * current property & client. IMPORTANT: We request the deleted rows with .select('id')
+ * so if RLS blocks it (0 rows), we can show a clear error instead of “nothing happens”.
  */
 export const useDeleteBooking = () => {
   const qc = useQueryClient();
@@ -93,7 +94,7 @@ export const useDeleteBooking = () => {
 
   return useMutation({
     mutationFn: async ({ bookingId, propertyId }: { bookingId: string; propertyId: string }) => {
-      // 1) Validate first (gives clear messages instead of silent no-ops)
+      // 1) Validate the row once for helpful messages
       const { data: found, error: findErr } = await supabase
         .from('bookings')
         .select('id, source, property_id, client_id')
@@ -107,23 +108,27 @@ export const useDeleteBooking = () => {
       if (found.property_id !== propertyId) throw new Error('This booking belongs to another property.');
       if (found.client_id !== clientId) throw new Error('This booking belongs to another account.');
 
-      // 2) Delete by primary key; if RLS blocks, Supabase returns an error.
-      const { error: delErr } = await supabase
+      // 2) Delete and RETURN the deleted row(s). If RLS blocks, data will be [].
+      const { data: deleted, error: delErr } = await supabase
         .from('bookings')
         .delete()
-        .eq('id', bookingId);
+        .eq('id', bookingId)
+        .select('id'); // <-- forces return of deleted rows
       if (delErr) throw new Error(delErr.message);
+      if (!deleted || deleted.length === 0) {
+        throw new Error('Delete was blocked by database rules (RLS). Ask admin to allow deleting manual bookings.');
+      }
 
       return true;
     },
     onSuccess: () => {
-      // ✅ Refresh ALL bookings queries so the event disappears immediately
+      // Refresh ALL bookings queries immediately
       qc.invalidateQueries({ predicate: q => Array.isArray(q.queryKey) && q.queryKey[0] === 'bookings' });
     }
   });
 };
 
-/** Some screens import this; keep it intact */
+/** Keep this export — other parts of the app import it */
 export const useUpdateProperty = () => {
   const qc = useQueryClient();
   const { data: clientId } = useClientId();
