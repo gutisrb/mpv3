@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
@@ -6,187 +6,257 @@ import { useApp } from '@/context/AppContext';
 import { useBookings, useCreateBooking } from '@/api/dataHooks';
 import { useClientId } from '@/api/useClientId';
 import BookingModal from '@/components/calendar/BookingModal';
-import ConfirmDialog from '@/components/common/ConfirmDialog';
-import { supabase } from '@/api/supabaseClient';
-import { useQueryClient } from '@tanstack/react-query';
-
-const toYMD = (s?: string) => (s ? s.substring(0, 10) : '');
-const addDays = (ymd: string, n = 1) => {
-  const d = new Date(ymd + 'T00:00:00');
-  d.setDate(d.getDate() + n);
-  return d.toISOString().substring(0, 10);
-};
-
-type SelectedRange = { start: string; end: string } | null;
+import { Plus } from 'lucide-react';
 
 const Calendar: React.FC = () => {
   const { data: clientId, error: clientError, isLoading: isLoadingClient } = useClientId();
   const { currentProperty } = useApp();
-  const propertyId = currentProperty?.id || '';
-
-  const { data: bookings = [] } = useBookings(propertyId);
+  const { data: bookings = [] } = useBookings(currentProperty?.id || '');
   const createBooking = useCreateBooking();
-  const queryClient = useQueryClient();
-
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedDates, setSelectedDates] = useState<SelectedRange>(null);
+  const [selectedDates, setSelectedDates] = useState<{ start: Date; end: Date } | null>(null);
 
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<{ id: string; start: string; end: string } | null>(null);
+  const getBookingDetails = (source: any) => {
+    const cleanSource = String(source || '').toLowerCase().trim();
+    
+    if (cleanSource === 'airbnb') {
+      return { color: '#FF5A5F', title: 'Airbnb' };
+    }
+    
+    if (cleanSource === 'booking.com') {
+      return { color: '#003580', title: 'Booking.com' };
+    }
+    
+    if (cleanSource === 'manual' || cleanSource === 'web' || cleanSource === 'website') {
+      return { color: '#F59E0B', title: 'Website' };
+    }
+    
+    return { color: '#6B7280', title: `${cleanSource || 'Unknown'}` };
+  };
 
-  const calRef = useRef<FullCalendar | null>(null);
+  const events = React.useMemo(() => {
+    return bookings.map((booking) => {
+      const details = getBookingDetails(booking.source);
+      
+      // Add one day to end for FullCalendar
+      const endDate = new Date(booking.end_date);
+      endDate.setDate(endDate.getDate() + 1);
+      
+      return {
+        id: booking.id,
+        title: details.title,
+        start: booking.start_date,
+        end: endDate.toISOString().split('T')[0],
+        backgroundColor: details.color,
+        borderColor: details.color,
+        textColor: '#FFFFFF',
+        display: 'background',
+        extendedProps: {
+          source: booking.source
+        }
+      };
+    });
+  }, [bookings]);
 
-  // Display fix: render checkout as inclusive by passing end+1 day to FullCalendar
-  // (DB keeps end as checkout; UI shows all occupied nights)
-  const events = useMemo(
-    () =>
-      bookings.map((b) => ({
-        id: b.id,
-        start: b.start_date,
-        end: addDays(b.end_date, 1), // key line: inclusive display
-        allDay: true,
-        display: 'background',       // fills the whole cell (requested look)
-        color: '#60a5fa',
-      })),
-    [bookings]
-  );
-
-  // Helper: does [s,e) overlap any existing rendered event?
-  const overlapsExisting = (s: Date, e: Date) => {
-    const api = calRef.current?.getApi();
-    if (!api) return false;
-    return api.getEvents().some((ev) => {
-      const es = ev.start ? ev.start.getTime() : 0;
-      const ee = ev.end ? ev.end.getTime() : es;
-      const ss = s.getTime();
-      const eeSel = e.getTime();
-      return es < eeSel && ss < ee; // intersect
+  const isDateRangeBooked = (start: Date, end: Date) => {
+    return bookings.some(booking => {
+      const bookingStart = new Date(booking.start_date);
+      const bookingEnd = new Date(booking.end_date);
+      return (start < bookingEnd && end > bookingStart);
     });
   };
 
-  // CREATE (dates only – DB constraint-safe)
-  const handleCreateBooking = async (payload: { start_date: string; end_date: string }) => {
-    if (!propertyId) return;
+  const handleDateSelect = (selectInfo: any) => {
+    const start = selectInfo.start;
+    const end = selectInfo.end;
+    
+    if (isDateRangeBooked(start, end)) {
+      return;
+    }
+    
+    setSelectedDates({ start, end });
+    setIsModalOpen(true);
+  };
+
+  const handleCreateBooking = async (bookingData: {
+    start_date: string;
+    end_date: string;
+    source: 'airbnb' | 'booking.com' | 'manual' | 'web';
+  }) => {
+    if (!currentProperty) return;
+    
     await createBooking.mutateAsync({
-      property_id: propertyId,
-      start_date: payload.start_date, // stored as checkout (no +1 in DB)
-      end_date: payload.end_date,
-      channel: 'Airbnb',  // passes your CHECK constraint
-      source: 'manual',
-      external_uid: null,
-    } as any);
-    setIsModalOpen(false);
-    setSelectedDates(null);
-  };
-
-  // CLICK a day:
-  // - if it contains a booking => open delete
-  // - else => open new booking modal
-  const onDateClick = (arg: { dateStr: string }) => {
-    const api = calRef.current?.getApi();
-    const clicked = new Date(arg.dateStr + 'T00:00:00');
-
-    const eventsOnDay =
-      api
-        ?.getEvents()
-        .filter((ev) => {
-          const es = ev.start ? new Date(ev.start) : null;
-          const ee = ev.end ? new Date(ev.end) : es;
-          if (!es || !ee) return false;
-          // remember: our rendered end is already +1 day
-          return es <= clicked && clicked < ee;
-        }) || [];
-
-    if (eventsOnDay.length) {
-      const ev = eventsOnDay[0];
-      const start = toYMD(ev.start?.toISOString() ?? '');
-      const endRendered = toYMD(ev.end?.toISOString() ?? '');
-      const endCheckout = endRendered ? addDays(endRendered, -1) : start;
-
-      setPendingDelete({ id: String(ev.id), start, end: endCheckout });
-      setConfirmOpen(true);
-      return;
-    }
-
-    const d = toYMD(arg.dateStr);
-    setSelectedDates({ start: d, end: d });
-    setIsModalOpen(true);
-  };
-
-  // DRAG/SELECT a range: block if it hits an existing booking (prevents double popups)
-  const onSelect = (arg: { start: Date; end: Date; startStr: string; endStr: string }) => {
-    if (overlapsExisting(arg.start, arg.end)) return;
-    // FullCalendar gives end exclusive; convert to checkout = end-1
-    const s = toYMD(arg.startStr);
-    const ex = toYMD(arg.endStr);
-    const e = ex ? addDays(ex, -1) : s;
-    setSelectedDates({ start: s, end: e });
-    setIsModalOpen(true);
-  };
-  const selectAllow = (arg: { start: Date; end: Date }) => !overlapsExisting(arg.start, arg.end);
-
-  // DELETE
-  const confirmDelete = async () => {
-    if (!pendingDelete || !propertyId) return;
-    const { id } = pendingDelete;
-
-    const { error } = await supabase
-      .from('bookings')
-      .delete()
-      .eq('id', id)
-      .eq('property_id', propertyId);
-
-    if (error) {
-      alert('Brisanje nije uspelo: ' + error.message);
-      return;
-    }
-
-    setConfirmOpen(false);
-    setPendingDelete(null);
-
-    // refresh bookings everywhere
-    await queryClient.invalidateQueries({
-      predicate: (q) => Array.isArray(q.queryKey) && String(q.queryKey[0]).includes('bookings'),
+      property_id: currentProperty.id,
+      start_date: bookingData.start_date,
+      end_date: bookingData.end_date,
+      source: 'manual'
     });
   };
 
-  const cancelDelete = () => {
-    setConfirmOpen(false);
-    setPendingDelete(null);
-  };
+  // Show loading state while checking client
+  if (isLoadingClient) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-blue-600"></div>
+          <p className="mt-4 text-gray-600">Checking account...</p>
+        </div>
+      </div>
+    );
+  }
 
-  // --------- states ----------
-  if (isLoadingClient) return <div className="p-6 text-sm text-gray-600">Loading…</div>;
-  if (clientError) return <div className="p-6 text-sm text-gray-600">Your account isn’t linked to a client. Contact support.</div>;
-  if (!propertyId) return <div className="p-6 text-sm text-gray-600">Please select a property in Settings first.</div>;
+  // Show error state if client lookup fails
+  if (clientError) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Plus className="w-8 h-8 text-red-600" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Account Setup Required</h3>
+          <p className="text-gray-500">{clientError.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentProperty) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Plus className="w-8 h-8 text-blue-600" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Property</h3>
+          <p className="text-gray-500">
+            Choose a property from the dropdown above to view its calendar.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-2xl shadow border p-2 sm:p-4">
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">{currentProperty.name}</h1>
+        <p className="text-gray-600">Manage your bookings and availability</p>
+      </div>
+
+      {/* Legend */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Booking Sources</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-red-50 to-red-100 border border-red-200">
+            <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: '#FF5A5F' }}></div>
+            <span className="text-sm font-medium text-gray-800">Airbnb</span>
+          </div>
+          <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200">
+            <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: '#003580' }}></div>
+            <span className="text-sm font-medium text-gray-800">Booking.com</span>
+          </div>
+          <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-amber-50 to-amber-100 border border-amber-200">
+            <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: '#F59E0B' }}></div>
+            <span className="text-sm font-medium text-gray-800">Website</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Calendar */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <style jsx global>{`
+          .fc {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+          }
+          
+          .fc-header-toolbar {
+            padding: 1.5rem 1.5rem 1rem 1.5rem;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-bottom: 1px solid #e2e8f0;
+          }
+          
+          .fc-toolbar-title {
+            font-size: 1.5rem !important;
+            font-weight: 700 !important;
+            color: #1e293b;
+          }
+          
+          .fc-button {
+            border: none !important;
+            background: #3b82f6 !important;
+            color: white !important;
+            border-radius: 0.75rem !important;
+            padding: 0.5rem 1rem !important;
+            font-weight: 500 !important;
+            transition: all 0.2s ease !important;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+          }
+          
+          .fc-button:hover {
+            background: #2563eb !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px 0 rgba(59, 130, 246, 0.4) !important;
+          }
+          
+          .fc-daygrid-day {
+            border: 1px solid #f1f5f9 !important;
+            transition: background-color 0.2s ease;
+            position: relative;
+          }
+          
+          .fc-daygrid-day-number {
+            position: relative !important;
+            z-index: 3 !important;
+            color: #1f2937 !important;
+            font-weight: 600 !important;
+            text-shadow: 0 0 3px rgba(255, 255, 255, 0.8) !important;
+          }
+          
+          .fc-bg-event {
+            opacity: 0.8 !important;
+            border: none !important;
+          }
+          
+          .fc-event-title {
+            position: absolute !important;
+            bottom: 2px !important;
+            left: 2px !important;
+            right: 2px !important;
+            font-size: 0.7rem !important;
+            font-weight: 600 !important;
+            text-align: center !important;
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+            z-index: 4 !important;
+          }
+        `}</style>
+        
         <FullCalendar
-          ref={calRef as any}
           plugins={[dayGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
-          dateClick={onDateClick}
-          selectable
-          select={onSelect}
-          selectAllow={selectAllow}
-          // mobile: no long-press delay
-          selectLongPressDelay={0}
-          eventLongPressDelay={0}
-          longPressDelay={0}
-          // layout
+          events={events}
+          selectable={true}
+          selectMirror={true}
+          select={handleDateSelect}
           height="auto"
-          expandRows
+          headerToolbar={{
+            left: 'prev,next today',
+            center: 'title',
+            right: ''
+          }}
+          dayMaxEvents={false}
+          moreLinkClick="popover"
+          eventDisplay="background"
           fixedWeekCount={false}
           showNonCurrentDates={false}
-          handleWindowResize
-          // data
-          events={events}
-          dayMaxEvents
-          dayMaxEventRows={2}
-          dayCellClassNames={() => ['touch-target']}
-          headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
+          dayHeaderFormat={{ weekday: 'short' }}
+          buttonText={{
+            today: 'Today'
+          }}
+          buttonIcons={{
+            prev: 'chevron-left',
+            next: 'chevron-right'
+          }}
         />
       </div>
 
@@ -196,20 +266,6 @@ const Calendar: React.FC = () => {
         onSubmit={handleCreateBooking}
         initialStartDate={selectedDates?.start}
         initialEndDate={selectedDates?.end}
-      />
-
-      <ConfirmDialog
-        open={confirmOpen}
-        title="Obrisati rezervaciju?"
-        message={
-          <div className="text-sm">
-            Period: <b>{pendingDelete?.start}</b> → <b>{pendingDelete?.end}</b>
-          </div>
-        }
-        confirmText="Obriši"
-        cancelText="Otkaži"
-        onConfirm={confirmDelete}
-        onCancel={cancelDelete}
       />
     </div>
   );
