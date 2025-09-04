@@ -76,19 +76,16 @@ export const useCreateBooking = () => {
       if (error) throw new Error(error.message);
       return data as Booking;
     },
-    onSuccess: (data) => {
-      if (data?.property_id) {
-        // refresh this property's calendar
-        qc.invalidateQueries({ queryKey: ['bookings', data.property_id] });
-      }
+    onSuccess: () => {
+      // ✅ Make sure ANY bookings query refreshes (propertyId + clientId variants)
+      qc.invalidateQueries({ predicate: q => Array.isArray(q.queryKey) && q.queryKey[0] === 'bookings' });
     }
   });
 };
 
 /**
  * Delete exactly one booking row by ID after verifying it's MANUAL and
- * belongs to the currently viewed property. We rely on RLS for final auth
- * and keep the query minimal to avoid “0 rows deleted” false negatives.
+ * belongs to the current property & client. RLS still enforces final auth.
  */
 export const useDeleteBooking = () => {
   const qc = useQueryClient();
@@ -96,7 +93,7 @@ export const useDeleteBooking = () => {
 
   return useMutation({
     mutationFn: async ({ bookingId, propertyId }: { bookingId: string; propertyId: string }) => {
-      // 1) Fetch once to validate “manual” + correct property
+      // 1) Validate first (gives clear messages instead of silent no-ops)
       const { data: found, error: findErr } = await supabase
         .from('bookings')
         .select('id, source, property_id, client_id')
@@ -110,7 +107,7 @@ export const useDeleteBooking = () => {
       if (found.property_id !== propertyId) throw new Error('This booking belongs to another property.');
       if (found.client_id !== clientId) throw new Error('This booking belongs to another account.');
 
-      // 2) Delete by primary key only (RLS will enforce permissions)
+      // 2) Delete by primary key; if RLS blocks, Supabase returns an error.
       const { error: delErr } = await supabase
         .from('bookings')
         .delete()
@@ -119,13 +116,14 @@ export const useDeleteBooking = () => {
 
       return true;
     },
-    onSuccess: (_ok, { propertyId }) => {
-      qc.invalidateQueries({ queryKey: ['bookings', propertyId] });
+    onSuccess: () => {
+      // ✅ Refresh ALL bookings queries so the event disappears immediately
+      qc.invalidateQueries({ predicate: q => Array.isArray(q.queryKey) && q.queryKey[0] === 'bookings' });
     }
   });
 };
 
-/** Keep this export — other parts of the app import it */
+/** Some screens import this; keep it intact */
 export const useUpdateProperty = () => {
   const qc = useQueryClient();
   const { data: clientId } = useClientId();
