@@ -168,4 +168,72 @@ const Calendar: React.FC = () => {
             <Plus className="w-8 h-8 text-red-600" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Account Setup Required</h3>
-          <p classNa
+          <p className="text-gray-500">{clientError.message}</p>
+        </div>
+      </div>
+    );
+  }
+  if (!currentProperty) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Plus className="w-8 h-8 text-blue-600" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Property</h3>
+          <p className="text-gray-500">Choose a property from the dropdown above to view its calendar.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold text-gray-900">Calendar — {currentProperty.name}</h1>
+        <p className="text-gray-500">Tap/Click a manual booking to delete it. Long-press on a date to create a booking on mobile.</p>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <FullCalendar
+          plugins={[dayGridPlugin, interactionPlugin]}
+          initialView="dayGridMonth"
+          events={events}
+          selectable={true}
+          selectMirror={true}
+          select={handleDateSelect}
+          eventClick={handleEventClick}
+          selectLongPressDelay={250}
+          height="auto"
+          headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
+          dayMaxEvents={false}
+          moreLinkClick="popover"
+          fixedWeekCount={false}
+          showNonCurrentDates={false}
+          dayHeaderFormat={{ weekday: 'short' } as any}
+          buttonText={{ today: 'Today' }}
+        />
+      </div>
+
+      <BookingModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleCreateBooking}
+        initialStartDate={selectedDates?.start}
+        initialEndDate={selectedDates?.end}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        title="Delete manual booking?"
+        message="This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteOpen(false)}
+      />
+    </div>
+  );
+};
+
+export default Calendar;
