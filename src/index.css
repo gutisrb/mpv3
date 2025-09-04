@@ -1,3 +1,36 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Make FullCalendar more tap-friendly on mobile */
+.fc .fc-daygrid-day,
+.fc .fc-daygrid-day-frame,
+.fc .fc-daygrid-day-top,
+.fc .fc-daygrid-day-number,
+.touch-target {
+  touch-action: manipulation;   /* prevent 300ms delays & ghost clicks */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fc .fc-daygrid-day-frame {
+  min-height: 64px;             /* bigger tap area on small screens */
+}
+
+@media (max-width: 640px) {
+  .fc .fc-toolbar.fc-header-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .fc .fc-toolbar-title {
+    font-size: 1rem;
+  }
+  .fc .fc-button {
+    padding: 6px 10px;
+    font-size: 0.875rem;
+  }
+}
+
+/* In case any fixed headers overlay the calendar on mobile, ensure clicks pass through. */
+.header-overlay {
+  pointer-events: none;   /* only if you have decorative overlays */
+}
