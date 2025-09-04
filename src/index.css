@@ -34,3 +34,6 @@
 .header-overlay {
   pointer-events: none;   /* only if you have decorative overlays */
 }
+.fc .fc-bg-event {
+  opacity: .35;
+}
