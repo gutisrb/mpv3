@@ -162,4 +162,62 @@ const Calendar: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="b
+      <div className="bg-white rounded-2xl shadow border p-2 sm:p-4">
+        <FullCalendar
+          ref={calendarRef as any}
+          plugins={[dayGridPlugin, interactionPlugin]}
+          initialView="dayGridMonth"
+          // Mobile-friendly taps:
+          dateClick={onDateClick}
+          selectable
+          select={onSelect}
+          // Remove long-press delays on mobile
+          selectLongPressDelay={0}
+          eventLongPressDelay={0}
+          longPressDelay={0}
+          // Layout
+          height="auto"
+          expandRows
+          fixedWeekCount={false}
+          showNonCurrentDates={false}
+          dayMaxEventRows={2}
+          dayMaxEvents
+          handleWindowResize
+          // Data
+          events={events}
+          dayCellClassNames={() => ['touch-target']}
+          eventClassNames={() => ['touch-target']}
+          headerToolbar={{
+            left: 'prev,next today',
+            center: 'title',
+            right: '',
+          }}
+        />
+      </div>
+
+      <BookingModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleCreateBooking}
+        initialStartDate={selectedDates?.start}
+        initialEndDate={selectedDates?.end}
+      />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Obrisati rezervaciju?"
+        message={
+          <div className="text-sm">
+            Period: <b>{pendingDelete?.start}</b> → <b>{pendingDelete?.end}</b>
+          </div>
+        }
+        confirmText="Obriši"
+        cancelText="Otkaži"
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+      />
+    </div>
+  );
+};
+
+export default Calendar;
