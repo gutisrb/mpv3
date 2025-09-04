@@ -1,233 +1,183 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, AlertCircle, CheckCircle } from 'lucide-react';
-import { format } from 'date-fns';
+import React, { useEffect, useMemo, useState } from 'react';
+import { parseISO, isValid, format } from 'date-fns';
 
-interface BookingModalProps {
+type Props = {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: {
-    start_date: string;
-    end_date: string;
-    source: 'airbnb' | 'booking.com' | 'manual' | 'web';
-  }) => Promise<void>;
-  initialStartDate?: Date;
-  initialEndDate?: Date;
+  onSubmit: (payload: {
+    guest_name: string;
+    guest_email: string;
+    guest_phone?: string;
+    start_date: string; // YYYY-MM-DD
+    end_date: string;   // YYYY-MM-DD
+    notes?: string;
+  }) => Promise<void> | void;
+  initialStartDate?: string | null; // ISO date or YYYY-MM-DD
+  initialEndDate?: string | null;   // ISO date or YYYY-MM-DD
+};
+
+function toYMD(value?: string | null): string {
+  if (!value) return '';
+  // Accept YYYY-MM-DD or full ISO; convert to YYYY-MM-DD if valid
+  const d = value.length > 10 ? parseISO(value) : parseISO(value + 'T00:00:00Z');
+  if (!isValid(d)) return '';
+  return format(d, 'yyyy-MM-dd');
 }
 
-const BookingModal: React.FC<BookingModalProps> = ({
+const BookingModal: React.FC<Props> = ({
   isOpen,
   onClose,
   onSubmit,
   initialStartDate,
-  initialEndDate,
+  initialEndDate
 }) => {
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [guestName, setGuestName] = useState('');
+  const [guestEmail, setGuestEmail] = useState('');
+  const [guestPhone, setGuestPhone] = useState('');
+  const [start, setStart] = useState<string>('');
+  const [end, setEnd] = useState<string>('');
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
+  // Initialize when modal opens
   useEffect(() => {
-    if (initialStartDate) {
-      setStartDate(format(initialStartDate, 'yyyy-MM-dd'));
+    if (isOpen) {
+      const s = toYMD(initialStartDate);
+      const e = toYMD(initialEndDate);
+      setStart(s || '');
+      setEnd((e || s) || '');
+      setGuestName('');
+      setGuestEmail('');
+      setGuestPhone('');
+      setNotes('');
+      setSubmitting(false);
     }
-    if (initialEndDate) {
-      setEndDate(format(initialEndDate, 'yyyy-MM-dd'));
-    }
-  }, [initialStartDate, initialEndDate]);
+  }, [isOpen, initialStartDate, initialEndDate]);
+
+  // Keep range sane (end >= start)
+  useEffect(() => {
+    if (start && end && end < start) setEnd(start);
+  }, [start, end]);
+
+  const canSubmit = useMemo(() => {
+    return !!guestName && !!guestEmail && !!start && !!end;
+  }, [guestName, guestEmail, start, end]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    
-    if (!startDate || !endDate) {
-      setError('Please select both start and end dates');
-      return;
-    }
-    
-    if (new Date(startDate) >= new Date(endDate)) {
-      setError('End date must be after start date');
-      return;
-    }
-    
-    setIsSubmitting(true);
-    
+    if (!canSubmit || submitting) return;
+    setSubmitting(true);
     try {
-      // Always submit as 'manual' - no user choice
       await onSubmit({
-        start_date: startDate,
-        end_date: endDate,
-        source: 'manual'
+        guest_name: guestName.trim(),
+        guest_email: guestEmail.trim(),
+        guest_phone: guestPhone.trim() || undefined,
+        start_date: start,
+        end_date: end,
+        notes: notes.trim() || undefined
       });
-      
-      setSuccess(true);
-      setTimeout(() => {
-        setSuccess(false);
-        onClose();
-      }, 1500);
-      
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred while creating the booking';
-      if (errorMessage.includes('duplicate key value')) {
-        setError('A booking already exists for these dates');
-      } else {
-        setError(errorMessage);
-      }
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   };
 
-  const resetForm = () => {
-    setStartDate('');
-    setEndDate('');
-    setError(null);
-    setSuccess(false);
-  };
-
-  const handleClose = () => {
-    resetForm();
-    onClose();
-  };
+  if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={handleClose}
-          />
-          
-          <motion.div
-            className="fixed inset-0 flex items-center justify-center z-50 px-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", duration: 0.3 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                      <Calendar className="w-4 h-4 text-white" />
-                    </div>
-                    <h2 className="text-xl font-semibold text-white">Add New Booking</h2>
-                  </div>
-                  <button
-                    onClick={handleClose}
-                    className="p-1 rounded-lg hover:bg-white/20 transition-colors"
-                  >
-                    <X className="w-5 h-5 text-white" />
-                  </button>
-                </div>
-              </div>
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/30">
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-semibold">Nova rezervacija</h3>
+          <button onClick={onClose} className="text-sm text-slate-600 hover:text-slate-900">Zatvori</button>
+        </div>
 
-              <div className="p-6">
-                {success ? (
-                  <motion.div 
-                    className="text-center py-8"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                  >
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <CheckCircle className="w-8 h-8 text-green-600" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Booking Created!</h3>
-                    <p className="text-gray-600">Your booking has been successfully added to the calendar.</p>
-                  </motion.div>
-                ) : (
-                  <form onSubmit={handleSubmit} className="space-y-6">
-                    {error && (
-                      <motion.div 
-                        className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3"
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                      >
-                        <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                        <p className="text-sm text-red-600">{error}</p>
-                      </motion.div>
-                    )}
-                    
-                    <div className="space-y-4">
-                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-blue-600" />
-                        Booking Dates
-                      </h3>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-2">
-                            Check-in Date
-                          </label>
-                          <input
-                            type="date"
-                            id="start-date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                            required
-                          />
-                        </div>
-                        
-                        <div>
-                          <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 mb-2">
-                            Check-out Date
-                          </label>
-                          <input
-                            type="date"
-                            id="end-date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                            required
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                      <button
-                        type="button"
-                        onClick={handleClose}
-                        className="px-4 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                      >
-                        {isSubmitting ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            Creating...
-                          </>
-                        ) : (
-                          'Create Booking'
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </div>
-            </motion.div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm mb-1">Dolazak</label>
+              <input
+                type="date"
+                className="w-full border rounded-md px-3 py-2"
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Odlazak</label>
+              <input
+                type="date"
+                className="w-full border rounded-md px-3 py-2"
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm mb-1">Ime i prezime</label>
+              <input
+                className="w-full border rounded-md px-3 py-2"
+                value={guestName}
+                onChange={(e) => setGuestName(e.target.value)}
+                placeholder="Ime gosta"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Email</label>
+              <input
+                type="email"
+                className="w-full border rounded-md px-3 py-2"
+                value={guestEmail}
+                onChange={(e) => setGuestEmail(e.target.value)}
+                placeholder="gost@email.com"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm mb-1">Telefon (opciono)</label>
+            <input
+              className="w-full border rounded-md px-3 py-2"
+              value={guestPhone}
+              onChange={(e) => setGuestPhone(e.target.value)}
+              placeholder="+381 6x xxx xxxx"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm mb-1">Beleške (opciono)</label>
+            <textarea
+              className="w-full border rounded-md px-3 py-2 min-h-[80px]"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Posebni zahtevi, napomene…"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-2 rounded-md border"
+            >
+              Otkaži
+            </button>
+            <button
+              type="submit"
+              disabled={!canSubmit || submitting}
+              className="px-3 py-2 rounded-md bg-slate-900 text-white disabled:opacity-50"
+            >
+              {submitting ? 'Čuvanje…' : 'Sačuvaj rezervaciju'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 };
 
