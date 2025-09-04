@@ -1,111 +1,106 @@
-import React, { useState } from 'react';
+// src/pages/Calendar.tsx
+import React, { useMemo, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { useApp } from '@/context/AppContext';
-import { useBookings, useCreateBooking } from '@/api/dataHooks';
+import { useBookings, useCreateBooking, useDeleteBooking } from '@/api/dataHooks';
 import { useClientId } from '@/api/useClientId';
 import BookingModal from '@/components/calendar/BookingModal';
 import { Plus } from 'lucide-react';
 
+type SelectedRange = { start: string; end: string } | null;
+
 const Calendar: React.FC = () => {
   const { data: clientId, error: clientError, isLoading: isLoadingClient } = useClientId();
   const { currentProperty } = useApp();
-  const { data: bookings = [] } = useBookings(currentProperty?.id || '');
+  const propertyId = currentProperty?.id || '';
+
+  const { data: bookings = [] } = useBookings(propertyId);
   const createBooking = useCreateBooking();
+  const deleteBooking = useDeleteBooking();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedDates, setSelectedDates] = useState<{ start: Date; end: Date } | null>(null);
+  const [selectedDates, setSelectedDates] = useState<SelectedRange>(null);
 
-  const getBookingDetails = (source: any) => {
-    const cleanSource = String(source || '').toLowerCase().trim();
-    
-    if (cleanSource === 'airbnb') {
-      return { color: '#FF5A5F', title: 'Airbnb' };
-    }
-    
-    if (cleanSource === 'booking.com') {
-      return { color: '#003580', title: 'Booking.com' };
-    }
-    
-    if (cleanSource === 'manual' || cleanSource === 'web' || cleanSource === 'website') {
-      return { color: '#F59E0B', title: 'Website' };
-    }
-    
-    return { color: '#6B7280', title: `${cleanSource || 'Unknown'}` };
+  const events = useMemo(
+    () =>
+      bookings.map((b) => ({
+        id: b.id,
+        start: b.start_date,     // ISO
+        end: b.end_date,         // ISO (FullCalendar treats end as exclusive; OK for allDay)
+        title: b.source || 'Rezervacija',
+        allDay: true,
+      })),
+    [bookings]
+  );
+
+  // ----- Create booking flow -----
+  const handleCreateBooking = async (form: {
+    guest_name: string;
+    guest_email: string;
+    guest_phone?: string;
+    start_date: string;
+    end_date: string;
+    notes?: string;
+  }) => {
+    if (!propertyId) return;
+    await createBooking.mutateAsync({
+      property_id: propertyId,
+      start_date: form.start_date,
+      end_date: form.end_date,
+      source: 'Direct site',
+      external_uid: null,
+      channel: 'Direct',
+    } as any);
+    setIsModalOpen(false);
+    setSelectedDates(null);
   };
 
-  const events = React.useMemo(() => {
-    return bookings.map((booking) => {
-      const details = getBookingDetails(booking.source);
-      
-      // Add one day to end for FullCalendar
-      const endDate = new Date(booking.end_date);
-      endDate.setDate(endDate.getDate() + 1);
-      
-      return {
-        id: booking.id,
-        title: details.title,
-        start: booking.start_date,
-        end: endDate.toISOString().split('T')[0],
-        backgroundColor: details.color,
-        borderColor: details.color,
-        textColor: '#FFFFFF',
-        display: 'background',
-        extendedProps: {
-          source: booking.source
-        }
-      };
-    });
-  }, [bookings]);
-
-  const isDateRangeBooked = (start: Date, end: Date) => {
-    return bookings.some(booking => {
-      const bookingStart = new Date(booking.start_date);
-      const bookingEnd = new Date(booking.end_date);
-      return (start < bookingEnd && end > bookingStart);
-    });
-  };
-
-  const handleDateSelect = (selectInfo: any) => {
-    const start = selectInfo.start;
-    const end = selectInfo.end;
-    
-    if (isDateRangeBooked(start, end)) {
-      return;
-    }
-    
-    setSelectedDates({ start, end });
+  // Single-tap a date → open modal for that day
+  const onDateClick = (arg: { dateStr: string }) => {
+    setSelectedDates({ start: arg.dateStr, end: arg.dateStr });
     setIsModalOpen(true);
   };
 
-  const handleCreateBooking = async (bookingData: {
-    start_date: string;
-    end_date: string;
-    source: 'airbnb' | 'booking.com' | 'manual' | 'web';
-  }) => {
-    if (!currentProperty) return;
-    
-    await createBooking.mutateAsync({
-      property_id: currentProperty.id,
-      start_date: bookingData.start_date,
-      end_date: bookingData.end_date,
-      source: 'manual'
-    });
+  // Drag/select (or long-press on mobile) → open modal with range
+  const onSelect = (arg: { startStr: string; endStr: string }) => {
+    setSelectedDates({ start: arg.startStr, end: arg.endStr });
+    setIsModalOpen(true);
   };
 
-  // Show loading state while checking client
+  // ----- Delete booking flow -----
+  // Tap an existing event (booking) → confirm → delete
+  const onEventClick = async (info: any) => {
+    try {
+      const bookingId = info?.event?.id as string | undefined;
+      const start = info?.event?.startStr || '';
+      const end = info?.event?.endStr || '';
+      if (!bookingId || !propertyId) return;
+
+      const pretty = (s: string) => (s ? new Date(s).toLocaleDateString() : '');
+      const ok = window.confirm(
+        `Obrisati rezervaciju?\n\nPeriod: ${pretty(start)} → ${pretty(end)}`
+      );
+      if (!ok) return;
+
+      await deleteBooking.mutateAsync({ bookingId, propertyId });
+      // FullCalendar will refresh because our query invalidates onSuccess in the hook
+    } catch (e) {
+      console.error(e);
+      alert('Brisanje nije uspelo. Pokušajte ponovo.');
+    }
+  };
+
+  // ----- UI states -----
   if (isLoadingClient) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-blue-600"></div>
-          <p className="mt-4 text-gray-600">Checking account...</p>
-        </div>
+        <div className="text-sm text-gray-600">Loading…</div>
       </div>
     );
   }
 
-  // Show error state if client lookup fails
   if (clientError) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
@@ -114,148 +109,54 @@ const Calendar: React.FC = () => {
             <Plus className="w-8 h-8 text-red-600" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Account Setup Required</h3>
-          <p className="text-gray-500">{clientError.message}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!currentProperty) {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Plus className="w-8 h-8 text-blue-600" />
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Property</h3>
-          <p className="text-gray-500">
-            Choose a property from the dropdown above to view its calendar.
+          <p className="text-gray-600 max-w-sm mx-auto">
+            Your account isn’t linked to a client yet. Please contact support.
           </p>
         </div>
       </div>
     );
   }
 
+  if (!propertyId) {
+    return (
+      <div className="p-6 text-sm text-gray-600">
+        Please select a property in Settings first.
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">{currentProperty.name}</h1>
-        <p className="text-gray-600">Manage your bookings and availability</p>
-      </div>
-
-      {/* Legend */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Booking Sources</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-red-50 to-red-100 border border-red-200">
-            <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: '#FF5A5F' }}></div>
-            <span className="text-sm font-medium text-gray-800">Airbnb</span>
-          </div>
-          <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200">
-            <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: '#003580' }}></div>
-            <span className="text-sm font-medium text-gray-800">Booking.com</span>
-          </div>
-          <div className="flex items-center p-3 rounded-xl bg-gradient-to-r from-amber-50 to-amber-100 border border-amber-200">
-            <div className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: '#F59E0B' }}></div>
-            <span className="text-sm font-medium text-gray-800">Website</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Calendar */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <style jsx global>{`
-          .fc {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-          }
-          
-          .fc-header-toolbar {
-            padding: 1.5rem 1.5rem 1rem 1.5rem;
-            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-            border-bottom: 1px solid #e2e8f0;
-          }
-          
-          .fc-toolbar-title {
-            font-size: 1.5rem !important;
-            font-weight: 700 !important;
-            color: #1e293b;
-          }
-          
-          .fc-button {
-            border: none !important;
-            background: #3b82f6 !important;
-            color: white !important;
-            border-radius: 0.75rem !important;
-            padding: 0.5rem 1rem !important;
-            font-weight: 500 !important;
-            transition: all 0.2s ease !important;
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
-          }
-          
-          .fc-button:hover {
-            background: #2563eb !important;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px 0 rgba(59, 130, 246, 0.4) !important;
-          }
-          
-          .fc-daygrid-day {
-            border: 1px solid #f1f5f9 !important;
-            transition: background-color 0.2s ease;
-            position: relative;
-          }
-          
-          .fc-daygrid-day-number {
-            position: relative !important;
-            z-index: 3 !important;
-            color: #1f2937 !important;
-            font-weight: 600 !important;
-            text-shadow: 0 0 3px rgba(255, 255, 255, 0.8) !important;
-          }
-          
-          .fc-bg-event {
-            opacity: 0.8 !important;
-            border: none !important;
-          }
-          
-          .fc-event-title {
-            position: absolute !important;
-            bottom: 2px !important;
-            left: 2px !important;
-            right: 2px !important;
-            font-size: 0.7rem !important;
-            font-weight: 600 !important;
-            text-align: center !important;
-            color: white !important;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
-            z-index: 4 !important;
-          }
-        `}</style>
-        
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl shadow border p-2 sm:p-4">
         <FullCalendar
           plugins={[dayGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
-          events={events}
-          selectable={true}
-          selectMirror={true}
-          select={handleDateSelect}
+          // Mobile-friendly taps
+          dateClick={onDateClick}
+          selectable
+          select={onSelect}
+          eventClick={onEventClick}
+          // Remove long-press delays on mobile
+          selectLongPressDelay={0}
+          eventLongPressDelay={0}
+          longPressDelay={0}
+          // Layout
           height="auto"
+          expandRows
+          fixedWeekCount={false}
+          showNonCurrentDates={false}
+          dayMaxEventRows={2}
+          dayMaxEvents
+          handleWindowResize
+          // Data
+          events={events}
+          // Touch target classes (paired with CSS you already added)
+          dayCellClassNames={() => ['touch-target']}
+          eventClassNames={() => ['touch-target']}
           headerToolbar={{
             left: 'prev,next today',
             center: 'title',
-            right: ''
-          }}
-          dayMaxEvents={false}
-          moreLinkClick="popover"
-          eventDisplay="background"
-          fixedWeekCount={false}
-          showNonCurrentDates={false}
-          dayHeaderFormat={{ weekday: 'short' }}
-          buttonText={{
-            today: 'Today'
-          }}
-          buttonIcons={{
-            prev: 'chevron-left',
-            next: 'chevron-right'
+            right: '',
           }}
         />
       </div>
