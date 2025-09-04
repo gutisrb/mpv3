@@ -17,7 +17,15 @@ const ConfirmDialog: React.FC<{
   cancelText?: string;
   onConfirm: () => void | Promise<void>;
   onCancel: () => void;
-}> = ({ open, title = 'Delete manual booking?', message = 'This action cannot be undone.', confirmText = 'Delete', cancelText = 'Cancel', onConfirm, onCancel }) => {
+}> = ({
+  open,
+  title = 'Delete manual booking?',
+  message = 'This action cannot be undone.',
+  confirmText = 'Delete',
+  cancelText = 'Cancel',
+  onConfirm,
+  onCancel
+}) => {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -26,10 +34,16 @@ const ConfirmDialog: React.FC<{
         <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
         <p className="text-gray-600 mb-6">{message}</p>
         <div className="flex justify-end gap-3">
-          <button onClick={onCancel} className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
             {cancelText}
           </button>
-          <button onClick={onConfirm} className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700">
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700"
+          >
             {confirmText}
           </button>
         </div>
@@ -48,6 +62,8 @@ const Calendar: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDates, setSelectedDates] = useState<{ start: Date; end: Date } | null>(null);
+
+  // Delete confirm modal state
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [targetBookingId, setTargetBookingId] = useState<string | null>(null);
 
@@ -59,20 +75,19 @@ const Calendar: React.FC = () => {
     return { color: '#6B7280', title: clean || 'Unknown' };
   };
 
-  // Events render as BACKGROUND so the whole day cell is filled.
-  // We also keep them clickable (see CSS + eventDidMount).
+  // Fill the entire cell (background events) for booked ranges
   const events = useMemo(() => {
     return bookings.map((b: Booking) => {
       const d = getBookingDetails(b.source);
       const endExclusive = new Date(b.end_date);
       endExclusive.setDate(endExclusive.getDate() + 1);
       return {
-        id: b.id,                      // clicking any day in the range deletes the WHOLE booking
-        title: '',                     // background events don’t need text
+        id: b.id,
+        title: '', // we keep it empty to avoid text crowding; cell stays fully filled
         start: b.start_date,
         end: endExclusive.toISOString().split('T')[0],
         allDay: true,
-        display: 'background',         // fill entire date boxes
+        display: 'background',
         backgroundColor: d.color,
         borderColor: d.color,
         extendedProps: { source: b.source }
@@ -106,8 +121,35 @@ const Calendar: React.FC = () => {
     });
   };
 
+  /** Click anywhere in a day cell:
+   *  - if it falls within a MANUAL booking → open confirm to delete the whole booking
+   *  - if it falls within an OTA booking → show info and do nothing
+   *  - if empty → do nothing (creation uses long-press/drag select)
+   */
+  const handleDateClick = (info: any) => {
+    const day = info.dateStr as string; // YYYY-MM-DD
+    // First look for a manual booking that covers this date
+    const manual = bookings.find(
+      (b) =>
+        (b.source || '').toLowerCase() === 'manual' &&
+        day >= b.start_date &&
+        day <= b.end_date
+    );
+    if (manual) {
+      setTargetBookingId(manual.id);
+      setDeleteOpen(true);
+      return;
+    }
+    // If it’s booked but not manual, tell the user it can’t be deleted
+    const anyBooked = bookings.find((b) => day >= b.start_date && day <= b.end_date);
+    if (anyBooked) {
+      alert('Only manual bookings can be deleted.');
+    }
+    // else: empty day — do nothing (keep your existing long-press to create)
+  };
+
+  // (kept for completeness, though dateClick already covers the whole cell)
   const handleEventClick = (clickInfo: any) => {
-    // Get the booking row for the WHOLE range by ID
     const b = bookings.find((x) => x.id === clickInfo.event.id);
     if (!b) return;
     if ((b.source || '').toLowerCase() !== 'manual') {
@@ -177,7 +219,9 @@ const Calendar: React.FC = () => {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-gray-900">Calendar — {currentProperty.name}</h1>
-        <p className="text-gray-500">Tap any booked day to delete the whole manual booking. Long-press on a date to create a booking on mobile.</p>
+        <p className="text-gray-500">
+          Tap any booked day to delete the whole manual booking. Long-press on a date to create a booking on mobile.
+        </p>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
@@ -188,11 +232,8 @@ const Calendar: React.FC = () => {
           selectable={true}
           selectMirror={true}
           select={handleDateSelect}
-          eventClick={handleEventClick}
-          eventDidMount={(info) => {
-            // Ensure background events are clickable on all devices
-            info.el.addEventListener('click', () => handleEventClick({ event: info.event }));
-          }}
+          dateClick={handleDateClick}        // ✅ click anywhere in the filled box
+          eventClick={handleEventClick}      // also works if event layer is clicked
           selectLongPressDelay={250}
           height="auto"
           headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
