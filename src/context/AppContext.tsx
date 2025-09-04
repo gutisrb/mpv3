@@ -70,6 +70,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentLocation, currentProperty]);
 
+  // Auto-select first property if none selected and properties are available
+  useEffect(() => {
+    if (!currentProperty && allProperties && allProperties.length > 0) {
+      const firstProperty = allProperties[0];
+      setCurrentProperty({
+        id: firstProperty.id,
+        name: firstProperty.name,
+        location: firstProperty.location
+      });
+    }
+  }, [allProperties, currentProperty]);
+
   return (
     <AppContext.Provider
       value={{
