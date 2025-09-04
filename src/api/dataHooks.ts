@@ -78,6 +78,7 @@ export const useCreateBooking = () => {
     },
     onSuccess: (data) => {
       if (data?.property_id) {
+        // refresh this property's calendar
         qc.invalidateQueries({ queryKey: ['bookings', data.property_id] });
       }
     }
@@ -85,58 +86,41 @@ export const useCreateBooking = () => {
 };
 
 /**
- * Delete ONE booking (manual-only) with strong filters and success check.
- * If no row is deleted, throws an error so the UI can report it.
+ * Delete exactly one booking row by ID after verifying it's MANUAL and
+ * belongs to the currently viewed property. We rely on RLS for final auth
+ * and keep the query minimal to avoid “0 rows deleted” false negatives.
  */
 export const useDeleteBooking = () => {
   const qc = useQueryClient();
   const { data: clientId } = useClientId();
+
   return useMutation({
-    mutationFn: async ({
-      bookingId,
-      propertyId,
-    }: {
-      bookingId: string;
-      propertyId: string;
-    }) => {
-      const { data, error } = await supabase
+    mutationFn: async ({ bookingId, propertyId }: { bookingId: string; propertyId: string }) => {
+      // 1) Fetch once to validate “manual” + correct property
+      const { data: found, error: findErr } = await supabase
+        .from('bookings')
+        .select('id, source, property_id, client_id')
+        .eq('id', bookingId)
+        .maybeSingle();
+      if (findErr) throw new Error(findErr.message);
+      if (!found) throw new Error('Booking not found.');
+
+      const src = (found.source || '').toLowerCase();
+      if (src !== 'manual') throw new Error('Only manual bookings can be deleted.');
+      if (found.property_id !== propertyId) throw new Error('This booking belongs to another property.');
+      if (found.client_id !== clientId) throw new Error('This booking belongs to another account.');
+
+      // 2) Delete by primary key only (RLS will enforce permissions)
+      const { error: delErr } = await supabase
         .from('bookings')
         .delete()
-        .eq('id', bookingId)
-        .eq('property_id', propertyId)
-        .eq('client_id', clientId!)
-        .eq('source', 'manual')
-        .select('id'); // returns deleted rows
+        .eq('id', bookingId);
+      if (delErr) throw new Error(delErr.message);
 
-      if (error) throw new Error(error.message);
-      if (!data || data.length === 0) {
-        throw new Error('Nothing was deleted. Check RLS and filters (manual-only).');
-      }
       return true;
     },
     onSuccess: (_ok, { propertyId }) => {
       qc.invalidateQueries({ queryKey: ['bookings', propertyId] });
-    }
-  });
-};
-
-/** (kept here if other parts of app import it; not used on Calendar now) */
-export const useUpdateProperty = () => {
-  const qc = useQueryClient();
-  const { data: clientId } = useClientId();
-  return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Omit<Property, 'id' | 'client_id'>> }) => {
-      const { error } = await supabase
-        .from('properties')
-        .update(updates)
-        .eq('id', id)
-        .eq('client_id', clientId!);
-      if (error) throw new Error(error.message);
-      return true;
-    },
-    onSuccess: (_ok, { id }) => {
-      qc.invalidateQueries({ queryKey: ['property', id] });
-      qc.invalidateQueries({ queryKey: ['properties'] });
     }
   });
 };
