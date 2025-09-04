@@ -34,46 +34,44 @@ const Calendar: React.FC = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; start: string; end: string } | null>(null);
 
-  const calendarRef = useRef<FullCalendar | null>(null);
+  const calRef = useRef<FullCalendar | null>(null);
 
-  // Render bookings as BACKGROUND events and with end+1 day (inclusive display)
+  // Display fix: render checkout as inclusive by passing end+1 day to FullCalendar
+  // (DB keeps end as checkout; UI shows all occupied nights)
   const events = useMemo(
     () =>
       bookings.map((b) => ({
         id: b.id,
         start: b.start_date,
-        end: addDays(b.end_date, 1), // end exclusive -> +1 to show both nights
-        display: 'background',       // fills whole cell
-        color: '#60a5fa',            // Tailwind sky-400-ish
+        end: addDays(b.end_date, 1), // key line: inclusive display
         allDay: true,
+        display: 'background',       // fills the whole cell (requested look)
+        color: '#60a5fa',
       })),
     [bookings]
   );
 
-  // Check if a selection overlaps any existing rendered event
-  const hasOverlap = (start: Date, endExclusive: Date) => {
-    const api = calendarRef.current?.getApi();
+  // Helper: does [s,e) overlap any existing rendered event?
+  const overlapsExisting = (s: Date, e: Date) => {
+    const api = calRef.current?.getApi();
     if (!api) return false;
-    const events = api.getEvents();
-    return events.some((e) => {
-      const es = e.start ? e.start.getTime() : 0;
-      const ee = e.end ? e.end.getTime() : es;
-      const s = start.getTime();
-      const eeSel = endExclusive.getTime();
-      // overlap if ranges intersect: [es, ee) ∩ [s, eeSel) ≠ ∅
-      return es < eeSel && s < ee;
+    return api.getEvents().some((ev) => {
+      const es = ev.start ? ev.start.getTime() : 0;
+      const ee = ev.end ? ev.end.getTime() : es;
+      const ss = s.getTime();
+      const eeSel = e.getTime();
+      return es < eeSel && ss < ee; // intersect
     });
   };
 
-  // ----- Create booking (dates only; DB constraint-safe) -----
-  const handleCreateBooking = async (form: { start_date: string; end_date: string }) => {
+  // CREATE (dates only – DB constraint-safe)
+  const handleCreateBooking = async (payload: { start_date: string; end_date: string }) => {
     if (!propertyId) return;
     await createBooking.mutateAsync({
       property_id: propertyId,
-      start_date: form.start_date,
-      end_date: form.end_date,
-      // use values allowed by your CHECK constraint
-      channel: 'Airbnb',
+      start_date: payload.start_date, // stored as checkout (no +1 in DB)
+      end_date: payload.end_date,
+      channel: 'Airbnb',  // passes your CHECK constraint
       source: 'manual',
       external_uid: null,
     } as any);
@@ -81,31 +79,31 @@ const Calendar: React.FC = () => {
     setSelectedDates(null);
   };
 
-  // Tap/click a day: if it contains a booking -> ask to delete; else open new-booking modal
+  // CLICK a day:
+  // - if it contains a booking => open delete
+  // - else => open new booking modal
   const onDateClick = (arg: { dateStr: string }) => {
-    const api = calendarRef.current?.getApi();
+    const api = calRef.current?.getApi();
     const clicked = new Date(arg.dateStr + 'T00:00:00');
 
     const eventsOnDay =
       api
         ?.getEvents()
-        .filter((e) => {
-          const start = e.start ? new Date(e.start) : null;
-          const end = e.end ? new Date(e.end) : start;
-          if (!start || !end) return false;
-          // inclusive for display: start <= clicked < end
-          return start <= clicked && clicked < end;
+        .filter((ev) => {
+          const es = ev.start ? new Date(ev.start) : null;
+          const ee = ev.end ? new Date(ev.end) : es;
+          if (!es || !ee) return false;
+          // remember: our rendered end is already +1 day
+          return es <= clicked && clicked < ee;
         }) || [];
 
-    if (eventsOnDay.length > 0) {
-      const e = eventsOnDay[0];
-      // e.end is +1 day for rendering; show end-1 to the user
-      const uiEnd = e.end ? addDays(toYMD(e.end.toISOString()), -1) : toYMD(e.start?.toISOString() ?? '');
-      setPendingDelete({
-        id: String(e.id),
-        start: toYMD(e.start?.toISOString() ?? ''),
-        end: uiEnd,
-      });
+    if (eventsOnDay.length) {
+      const ev = eventsOnDay[0];
+      const start = toYMD(ev.start?.toISOString() ?? '');
+      const endRendered = toYMD(ev.end?.toISOString() ?? '');
+      const endCheckout = endRendered ? addDays(endRendered, -1) : start;
+
+      setPendingDelete({ id: String(ev.id), start, end: endCheckout });
       setConfirmOpen(true);
       return;
     }
@@ -115,31 +113,41 @@ const Calendar: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  // Drag/select (range). Block if any overlap with existing bookings to prevent double dialogs.
+  // DRAG/SELECT a range: block if it hits an existing booking (prevents double popups)
   const onSelect = (arg: { start: Date; end: Date; startStr: string; endStr: string }) => {
-    // abort if overlaps existing events
-    if (hasOverlap(arg.start, arg.end)) return;
-
+    if (overlapsExisting(arg.start, arg.end)) return;
     // FullCalendar gives end exclusive; convert to checkout = end-1
     const s = toYMD(arg.startStr);
-    const eExclusive = toYMD(arg.endStr);
-    const e = eExclusive ? addDays(eExclusive, -1) : s;
+    const ex = toYMD(arg.endStr);
+    const e = ex ? addDays(ex, -1) : s;
     setSelectedDates({ start: s, end: e });
     setIsModalOpen(true);
   };
+  const selectAllow = (arg: { start: Date; end: Date }) => !overlapsExisting(arg.start, arg.end);
 
-  // Also block selection before it starts (prevents the double open)
-  const selectAllow = (arg: { start: Date; end: Date }) => !hasOverlap(arg.start, arg.end);
-
-  // Delete booking
+  // DELETE
   const confirmDelete = async () => {
     if (!pendingDelete || !propertyId) return;
-    await supabase.from('bookings').delete().eq('id', pendingDelete.id).eq('property_id', propertyId);
+    const { id } = pendingDelete;
+
+    const { error } = await supabase
+      .from('bookings')
+      .delete()
+      .eq('id', id)
+      .eq('property_id', propertyId);
+
+    if (error) {
+      alert('Brisanje nije uspelo: ' + error.message);
+      return;
+    }
+
     setConfirmOpen(false);
     setPendingDelete(null);
-    // refresh
-    queryClient.invalidateQueries({ queryKey: ['bookings', propertyId] });
-    queryClient.invalidateQueries({ queryKey: ['bookings'] });
+
+    // refresh bookings everywhere
+    await queryClient.invalidateQueries({
+      predicate: (q) => Array.isArray(q.queryKey) && String(q.queryKey[0]).includes('bookings'),
+    });
   };
 
   const cancelDelete = () => {
@@ -147,29 +155,23 @@ const Calendar: React.FC = () => {
     setPendingDelete(null);
   };
 
-  if (isLoadingClient) {
-    return <div className="p-6 text-sm text-gray-600">Loading…</div>;
-  }
-  if (clientError) {
-    return <div className="p-6 text-sm text-gray-600">Your account isn’t linked to a client. Contact support.</div>;
-  }
-  if (!propertyId) {
-    return <div className="p-6 text-sm text-gray-600">Please select a property in Settings first.</div>;
-  }
+  // --------- states ----------
+  if (isLoadingClient) return <div className="p-6 text-sm text-gray-600">Loading…</div>;
+  if (clientError) return <div className="p-6 text-sm text-gray-600">Your account isn’t linked to a client. Contact support.</div>;
+  if (!propertyId) return <div className="p-6 text-sm text-gray-600">Please select a property in Settings first.</div>;
 
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl shadow border p-2 sm:p-4">
         <FullCalendar
-          ref={calendarRef as any}
+          ref={calRef as any}
           plugins={[dayGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
-          // tap/click behaviors
           dateClick={onDateClick}
           selectable
           select={onSelect}
           selectAllow={selectAllow}
-          // mobile: no long-press delays
+          // mobile: no long-press delay
           selectLongPressDelay={0}
           eventLongPressDelay={0}
           longPressDelay={0}
@@ -178,13 +180,12 @@ const Calendar: React.FC = () => {
           expandRows
           fixedWeekCount={false}
           showNonCurrentDates={false}
-          dayMaxEventRows={2}
-          dayMaxEvents
           handleWindowResize
           // data
           events={events}
+          dayMaxEvents
+          dayMaxEventRows={2}
           dayCellClassNames={() => ['touch-target']}
-          eventClassNames={() => ['touch-target']}
           headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
         />
       </div>
