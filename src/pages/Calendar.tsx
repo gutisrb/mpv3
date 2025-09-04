@@ -1,16 +1,22 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { useApp } from '@/context/AppContext';
-import { useBookings, useCreateBooking, useDeleteBooking } from '@/api/dataHooks';
+import { useBookings, useCreateBooking } from '@/api/dataHooks';
 import { useClientId } from '@/api/useClientId';
 import BookingModal from '@/components/calendar/BookingModal';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
-import { Plus } from 'lucide-react';
+import { supabase } from '@/api/supabaseClient';
+import { useQueryClient } from '@tanstack/react-query';
 
-// Ensure YYYY-MM-DD (FullCalendar passes ISO strings sometimes)
+// helpers
 const toYMD = (s?: string) => (s ? s.substring(0, 10) : '');
+const addDays = (dateYmd: string, n = 1) => {
+  const d = new Date(dateYmd + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().substring(0, 10);
+};
 
 type SelectedRange = { start: string; end: string } | null;
 
@@ -21,7 +27,7 @@ const Calendar: React.FC = () => {
 
   const { data: bookings = [] } = useBookings(propertyId);
   const createBooking = useCreateBooking();
-  const deleteBooking = useDeleteBooking();
+  const queryClient = useQueryClient();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDates, setSelectedDates] = useState<SelectedRange>(null);
@@ -29,68 +35,99 @@ const Calendar: React.FC = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; start: string; end: string } | null>(null);
 
+  const calendarRef = useRef<FullCalendar | null>(null);
+
+  // Display events with end date INCLUSIVE (fills both boxes visually).
+  // We keep DB end_date as the checkout date; for rendering, we add +1 day.
   const events = useMemo(
     () =>
       bookings.map((b) => ({
         id: b.id,
-        start: b.start_date,
-        end: b.end_date,
+        start: b.start_date,                 // e.g. 2025-09-19
+        end: addDays(b.end_date, 1),         // render inclusive: 2025-09-20 -> shows 19 & 20
         title: b.source || 'Rezervacija',
         allDay: true,
       })),
     [bookings]
   );
 
-  // ----- Create -----
-  const handleCreateBooking = async (form: {
-    guest_name: string;
-    guest_email: string;
-    guest_phone?: string;
-    start_date: string;
-    end_date: string;
-    notes?: string;
-  }) => {
+  // ----- Create booking (minimal: dates only) -----
+  const handleCreateBooking = async (form: { start_date: string; end_date: string }) => {
     if (!propertyId) return;
+
     await createBooking.mutateAsync({
       property_id: propertyId,
       start_date: form.start_date,
       end_date: form.end_date,
-      source: 'Direct site',
+      // Use values your DB CHECK allows. Your constraint rejected "Direct".
+      // "Airbnb" is already present in your rows, so we use that to satisfy the check.
+      channel: 'Airbnb',
+      source: 'manual',
       external_uid: null,
-      channel: 'Direct',
     } as any);
+
     setIsModalOpen(false);
     setSelectedDates(null);
   };
 
+  // If a day has any event, clicking anywhere in the cell will open delete confirm for that event.
+  // Otherwise it opens the "new booking" modal.
   const onDateClick = (arg: { dateStr: string }) => {
+    const api = calendarRef.current?.getApi();
+    const clicked = new Date(arg.dateStr + 'T00:00:00');
+
+    const eventsOnDay =
+      api
+        ?.getEvents()
+        .filter((e) => {
+          const start = e.start ? new Date(e.start) : null;
+          const end = e.end ? new Date(e.end) : start; // end is already +1 day for inclusive display
+          if (!start || !end) return false;
+          // inclusive for display: start <= clicked < end
+          return start <= clicked && clicked < end;
+        }) || [];
+
+    if (eventsOnDay.length > 0) {
+      const e = eventsOnDay[0];
+      setPendingDelete({
+        id: String(e.id),
+        start: toYMD(e.start?.toISOString() ?? ''),
+        end: toYMD(e.end?.toISOString() ?? ''),
+      });
+      setConfirmOpen(true);
+      return;
+    }
+
     const d = toYMD(arg.dateStr);
     setSelectedDates({ start: d, end: d });
     setIsModalOpen(true);
   };
 
+  // Drag/select (or long-press on mobile) → open modal with range
   const onSelect = (arg: { startStr: string; endStr: string }) => {
+    // FullCalendar select endStr is exclusive; use (endStr - 1 day) for check-out semantics
     const s = toYMD(arg.startStr);
-    const e = toYMD(arg.endStr) || s;
+    const eExclusive = toYMD(arg.endStr);
+    const e = eExclusive ? addDays(eExclusive, -1) : s;
     setSelectedDates({ start: s, end: e });
     setIsModalOpen(true);
   };
 
-  // ----- Delete -----
-  const onEventClick = (info: any) => {
-    const id = info?.event?.id as string | undefined;
-    if (!id) return;
-    const start = toYMD(info?.event?.startStr);
-    const end = toYMD(info?.event?.endStr);
-    setPendingDelete({ id, start, end });
-    setConfirmOpen(true);
-  };
-
+  // ----- Delete booking (direct Supabase call, then invalidate cache) -----
   const confirmDelete = async () => {
     if (!pendingDelete || !propertyId) return;
-    await deleteBooking.mutateAsync({ bookingId: pendingDelete.id, propertyId });
+
+    await supabase
+      .from('bookings')
+      .delete()
+      .eq('id', pendingDelete.id)
+      .eq('property_id', propertyId);
+
     setConfirmOpen(false);
     setPendingDelete(null);
+    // Refresh calendar data
+    queryClient.invalidateQueries({ queryKey: ['bookings', propertyId] });
+    queryClient.invalidateQueries({ queryKey: ['bookings'] });
   };
 
   const cancelDelete = () => {
@@ -109,16 +146,8 @@ const Calendar: React.FC = () => {
 
   if (clientError) {
     return (
-      <div className="p-6 flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Plus className="w-8 h-8 text-red-600" />
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Account Setup Required</h3>
-          <p className="text-gray-600 max-w-sm mx-auto">
-            Your account isn’t linked to a client yet. Please contact support.
-          </p>
-        </div>
+      <div className="p-6 text-sm text-gray-600">
+        Your account isn’t linked to a client yet. Please contact support.
       </div>
     );
   }
@@ -133,60 +162,4 @@ const Calendar: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-2xl shadow border p-2 sm:p-4">
-        <FullCalendar
-          plugins={[dayGridPlugin, interactionPlugin]}
-          initialView="dayGridMonth"
-          dateClick={onDateClick}
-          selectable
-          select={onSelect}
-          eventClick={onEventClick}
-          // Mobile touch friendliness
-          selectLongPressDelay={0}
-          eventLongPressDelay={0}
-          longPressDelay={0}
-          // Layout
-          height="auto"
-          expandRows
-          fixedWeekCount={false}
-          showNonCurrentDates={false}
-          dayMaxEventRows={2}
-          dayMaxEvents
-          handleWindowResize
-          events={events}
-          dayCellClassNames={() => ['touch-target']}
-          eventClassNames={() => ['touch-target']}
-          headerToolbar={{
-            left: 'prev,next today',
-            center: 'title',
-            right: '',
-          }}
-        />
-      </div>
-
-      <BookingModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handleCreateBooking}
-        initialStartDate={selectedDates?.start}
-        initialEndDate={selectedDates?.end}
-      />
-
-      <ConfirmDialog
-        open={confirmOpen}
-        title="Obrisati rezervaciju?"
-        message={
-          <div className="text-sm">
-            Period: <b>{pendingDelete?.start}</b> → <b>{pendingDelete?.end}</b>
-          </div>
-        }
-        confirmText="Obriši"
-        cancelText="Otkaži"
-        onConfirm={confirmDelete}
-        onCancel={cancelDelete}
-      />
-    </div>
-  );
-};
-
-export default Calendar;
+      <div className="b
