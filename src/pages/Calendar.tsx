@@ -3,36 +3,78 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { useApp } from '@/context/AppContext';
-import { useBookings, useCreateBooking, useDeleteBooking, useDeleteAllManualBookings, Booking } from '@/api/dataHooks';
+import { useBookings, useCreateBooking, useDeleteBooking, Booking } from '@/api/dataHooks';
 import { useClientId } from '@/api/useClientId';
 import BookingModal from '@/components/calendar/BookingModal';
-import { Plus, Trash2 } from 'lucide-react';
+
+/** Lightweight in-app confirm (no browser alert/confirm) */
+const ConfirmDialog: React.FC<{
+  open: boolean;
+  title: string;
+  description?: string;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}> = ({ open, title, description, confirmText = 'Delete', cancelText = 'Cancel', onConfirm, onCancel }) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl">
+        <div className="p-5 border-b border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+          {description ? <p className="mt-1 text-sm text-gray-500">{description}</p> : null}
+        </div>
+        <div className="p-5 flex items-center justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
+            {cancelText}
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700"
+          >
+            {confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /**
  * Calendar page
- * - Adds manual-only delete on event click
- * - Adds a bulk "Delete all manual bookings" button
+ * - Manual-only delete with in-app confirmation
  * - Mobile friendly (long press to select)
  * - Multi-day bookings render correctly (exclusive end)
+ * - Bulk "Danger Zone" REMOVED as requested
  */
 const Calendar: React.FC = () => {
   const { data: clientId, error: clientError, isLoading: isLoadingClient } = useClientId();
   const { currentProperty } = useApp();
   const propertyId = currentProperty?.id || '';
   const { data: bookings = [] } = useBookings(propertyId);
+
   const createBooking = useCreateBooking();
   const deleteBooking = useDeleteBooking();
-  const deleteAllManual = useDeleteAllManualBookings();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDates, setSelectedDates] = useState<{ start: Date; end: Date } | null>(null);
 
+  // delete dialog state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   const getBookingDetails = (source: string | null) => {
-    const cleanSource = (source || '').toLowerCase().trim();
-    if (cleanSource === 'airbnb')    return { color: '#FF5A5F', title: 'Airbnb' };
-    if (cleanSource === 'booking.com' || cleanSource === 'booking') return { color: '#003580', title: 'Booking.com' };
-    if (cleanSource === 'manual' || cleanSource === 'web' || cleanSource === 'website') return { color: '#F59E0B', title: 'Manual' };
-    return { color: '#6B7280', title: cleanSource || 'Unknown' };
+    const s = (source || '').toLowerCase().trim();
+    if (s === 'airbnb') return { color: '#FF5A5F', title: 'Airbnb' };
+    if (s === 'booking.com' || s === 'booking') return { color: '#003580', title: 'Booking.com' };
+    if (s === 'manual' || s === 'web' || s === 'website') return { color: '#F59E0B', title: 'Manual' };
+    return { color: '#6B7280', title: s || 'Other' };
+    // NOTE: only 'manual' will be deletable; display title is informational.
   };
 
   const events = useMemo(() => {
@@ -64,14 +106,18 @@ const Calendar: React.FC = () => {
   };
 
   const handleDateSelect = (selectInfo: any) => {
-    const start = selectInfo.start;
-    const end = selectInfo.end;
+    const start = selectInfo.start as Date;
+    const end = selectInfo.end as Date;
     if (isDateRangeBooked(start, end)) return;
     setSelectedDates({ start, end });
     setIsModalOpen(true);
   };
 
-  const handleCreateBooking = async (bookingData: { start_date: string; end_date: string; source: 'manual' | 'web' | 'airbnb' | 'booking.com' }) => {
+  const handleCreateBooking = async (bookingData: {
+    start_date: string;
+    end_date: string;
+    source: 'manual' | 'web' | 'airbnb' | 'booking.com';
+  }) => {
     if (!currentProperty) return;
     await createBooking.mutateAsync({
       property_id: currentProperty.id,
@@ -82,16 +128,31 @@ const Calendar: React.FC = () => {
   };
 
   const handleEventClick = (clickInfo: any) => {
-    const b = bookings.find((x) => x.id === clickInfo.event.id);
-    if (!b) return;
-    const s = (b.source || '').toLowerCase();
-    if (s !== 'manual' && s !== 'web' && s !== 'website') {
-      alert('Only manual bookings can be deleted.');
+    const source = (clickInfo?.event?.extendedProps?.source || '').toLowerCase();
+    if (source !== 'manual') {
+      // No delete for OTA bookings
       return;
     }
-    if (!currentProperty) return;
-    if (confirm('Delete this manual booking?')) {
-      deleteBooking.mutate({ bookingId: b.id, propertyId: currentProperty.id });
+    setDeleteTarget({ id: String(clickInfo.event.id), label: clickInfo.event.title || 'manual booking' });
+    setDeleteOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!currentProperty || !deleteTarget) return;
+    try {
+      setDeleting(true);
+      await deleteBooking.mutateAsync({
+        bookingId: deleteTarget.id,
+        propertyId: currentProperty.id
+      });
+    } catch (e) {
+      // Surface error in a simple way
+      console.error(e);
+      alert((e as Error)?.message ?? 'Failed to delete booking.');
+    } finally {
+      setDeleting(false);
+      setDeleteOpen(false);
+      setDeleteTarget(null);
     }
   };
 
@@ -100,9 +161,6 @@ const Calendar: React.FC = () => {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Plus className="w-8 h-8 text-blue-600" />
-          </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Checking your account…</h3>
           <p className="text-gray-500">Please wait a moment.</p>
         </div>
@@ -113,9 +171,6 @@ const Calendar: React.FC = () => {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Plus className="w-8 h-8 text-red-600" />
-          </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Account Setup Required</h3>
           <p className="text-gray-500">{clientError.message}</p>
         </div>
@@ -126,9 +181,6 @@ const Calendar: React.FC = () => {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Plus className="w-8 h-8 text-blue-600" />
-          </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Property</h3>
           <p className="text-gray-500">Choose a property from the dropdown above to view its calendar.</p>
         </div>
@@ -138,48 +190,9 @@ const Calendar: React.FC = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Calendar — {currentProperty.name}</h1>
         <p className="text-gray-500">Tap/Click a manual booking to delete it. Long-press on a date to create a booking on mobile.</p>
-      </div>
-
-      {/* Danger Zone: bulk delete */}
-      <div className="bg-white rounded-2xl shadow-sm border border-red-200 p-6 mb-6">
-        <h3 className="text-lg font-semibold text-red-700 mb-2">Danger Zone</h3>
-        <p className="text-sm text-red-600 mb-4">
-          This will permanently delete <strong>all manual bookings</strong> for this property. Bookings from Airbnb / Booking.com will not be touched.
-        </p>
-        <button
-          onClick={async () => {
-            if (!currentProperty) return;
-            if (!confirm('Delete ALL manual bookings for this property? This cannot be undone.')) return;
-            try {
-              await deleteAllManual.mutateAsync({ propertyId: currentProperty.id });
-              alert('All manual bookings were deleted.');
-            } catch (e: any) {
-              alert(e?.message || 'Failed to delete manual bookings.');
-            }
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400"
-        >
-          <Trash2 className="w-4 h-4" />
-          Delete all manual bookings
-        </button>
-      </div>
-
-      {/* Legend */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        {[
-          { color: '#F59E0B', label: 'Manual' },
-          { color: '#FF5A5F', label: 'Airbnb' },
-          { color: '#003580', label: 'Booking.com' },
-          { color: '#6B7280', label: 'Other' },
-        ].map((it) => (
-          <div key={it.label} className="flex items-center gap-2">
-            <span className="inline-block w-4 h-4 rounded" style={{ backgroundColor: it.color }} />
-            <span className="text-sm text-gray-600">{it.label}</span>
-          </div>
-        ))}
       </div>
 
       <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
@@ -192,26 +205,4 @@ const Calendar: React.FC = () => {
           select={handleDateSelect}
           eventClick={handleEventClick}
           selectLongPressDelay={250}
-          height="auto"
-          headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
-          dayMaxEvents={false}
-          moreLinkClick="popover"
-          fixedWeekCount={false}
-          showNonCurrentDates={false}
-          dayHeaderFormat={{ weekday: 'short' } as any}
-          buttonText={{ today: 'Today' }}
-        />
-      </div>
-
-      <BookingModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handleCreateBooking}
-        initialStartDate={selectedDates?.start}
-        initialEndDate={selectedDates?.end}
-      />
-    </div>
-  );
-};
-
-export default Calendar;
+          height="auto
